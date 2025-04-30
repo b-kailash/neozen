@@ -1,7 +1,8 @@
 import sys
 from PyQt6.QtWidgets import (
     QMainWindow, QApplication, QWidget, QVBoxLayout, QHBoxLayout,
-    QLabel, QLineEdit, QPushButton, QTextEdit, QMessageBox, QProgressBar
+    QLabel, QLineEdit, QPushButton, QTextEdit, QMessageBox, QProgressBar,
+    QTabWidget, QTableWidget, QTableWidgetItem, QHeaderView
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QThread # Import QThread for later use
 from neozen.core.scanner import Scanner # Import the Scanner thread class
@@ -9,12 +10,13 @@ from neozen.core.scanner import Scanner # Import the Scanner thread class
 class MainWindow(QMainWindow):
     """
     Main application window for NeoZen.
+    Includes tabs for raw output and parsed results.
     """
     def __init__(self):
         super().__init__() # Call the constructor of the parent class (QMainWindow)
 
         self.setWindowTitle("NeoZen - Modern Nmap GUI")
-        self.setGeometry(100, 100, 800, 600) # x, y, width, height
+        self.setGeometry(100, 100, 900, 700) # x, y, width, height - Increased size
 
         # --- Central Widget and Layout ---
         central_widget = QWidget()
@@ -43,18 +45,48 @@ class MainWindow(QMainWindow):
         self.progress_bar.setVisible(False) # Initially hidden
         self.progress_bar.setRange(0, 0) # Indeterminate progress
 
-        # --- Output Area ---
-        output_label = QLabel("Nmap Output:")
+        # --- Tabbed Output Area ---
+        self.tab_widget = QTabWidget()
+
+        # --- Raw Output Tab ---
+        self.raw_output_widget = QWidget() # Widget to hold the layout for this tab
+        raw_output_layout = QVBoxLayout(self.raw_output_widget)
+        raw_output_layout.setContentsMargins(0, 5, 0, 0) # Remove extra margins
         self.output_area = QTextEdit()
         self.output_area.setReadOnly(True) # Make it non-editable
         self.output_area.setFontFamily("monospace") # Use a monospaced font for output
+        raw_output_layout.addWidget(self.output_area)
+        self.tab_widget.addTab(self.raw_output_widget, "Raw Output")
+
+        # --- Parsed Results Tab ---
+        self.parsed_results_widget = QWidget()
+        parsed_results_layout = QVBoxLayout(self.parsed_results_widget)
+        parsed_results_layout.setContentsMargins(0, 5, 0, 0)
+        self.results_table = QTableWidget()
+        self.results_table.setColumnCount(7) # Host, Proto, Port, State, Service, Product, Version
+        self.results_table.setHorizontalHeaderLabels(["Host", "Proto", "Port", "State", "Service", "Product", "Version"])
+        self.results_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers) # Read-only
+        self.results_table.setAlternatingRowColors(True)
+        self.results_table.verticalHeader().setVisible(False) # Hide row numbers
+        # Adjust column widths
+        header = self.results_table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive) # Host
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents) # Proto
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents) # Port
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Interactive) # State
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.Interactive) # Service
+        header.setSectionResizeMode(5, QHeaderView.ResizeMode.Stretch) # Product
+        header.setSectionResizeMode(6, QHeaderView.ResizeMode.Stretch) # Version
+        self.results_table.setSortingEnabled(True) # Allow sorting by clicking headers
+
+        parsed_results_layout.addWidget(self.results_table)
+        self.tab_widget.addTab(self.parsed_results_widget, "Parsed Results")
 
         # --- Add layouts and widgets to main layout ---
         main_layout.addLayout(target_layout)
         main_layout.addLayout(button_layout)
         main_layout.addWidget(self.progress_bar)
-        main_layout.addWidget(output_label)
-        main_layout.addWidget(self.output_area) # Add the output area
+        main_layout.addWidget(self.tab_widget) # Add the tab widget instead of just output_area
 
         # --- Status Bar ---
         self.statusBar().showMessage("Ready")
@@ -80,8 +112,9 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, "Scan in Progress", "A scan is already running.")
             return
 
-        # Clear previous output
+        # Clear previous output and results
         self.output_area.clear()
+        self.results_table.setRowCount(0) # Clear table rows
         self.statusBar().showMessage(f"Starting scan on {target}...")
         self.scan_button.setEnabled(False)
         self.stop_button.setEnabled(True)
@@ -89,14 +122,17 @@ class MainWindow(QMainWindow):
 
         # --- Create and start the scanner thread ---
         # For now, using a simple intense scan argument '-T4 -A -v'
-        # We will add more options later
         nmap_args = "-T4 -A -v" # Example arguments
         self.scanner_thread = Scanner(target, nmap_args)
 
         # Connect signals from the thread to slots in this window
         self.scanner_thread.scan_output.connect(self.append_output)
+        self.scanner_thread.scan_results_ready.connect(self.display_parsed_results) # Connect new signal
         self.scanner_thread.scan_finished.connect(self.scan_complete)
         self.scanner_thread.scan_error.connect(self.scan_error_occurred)
+
+        # Switch to Raw Output tab when scan starts
+        self.tab_widget.setCurrentWidget(self.raw_output_widget)
 
         # Start the thread's run() method
         self.scanner_thread.start()
@@ -108,7 +144,6 @@ class MainWindow(QMainWindow):
         if self.scanner_thread and self.scanner_thread.isRunning():
             self.statusBar().showMessage("Attempting to stop scan...")
             self.scanner_thread.stop() # Ask the thread to stop
-            # Buttons will be re-enabled in scan_complete or scan_error_occurred
         else:
             self.statusBar().showMessage("No scan is currently running.")
             self.stop_button.setEnabled(False)
@@ -118,10 +153,72 @@ class MainWindow(QMainWindow):
 
     def append_output(self, text):
         """
-        Slot to append text (received from the scanner thread) to the output area.
+        Slot to append text (received from the scanner thread) to the raw output area.
         """
         self.output_area.append(text)
         self.output_area.verticalScrollBar().setValue(self.output_area.verticalScrollBar().maximum()) # Auto-scroll
+
+    def display_parsed_results(self, results_data):
+        """
+        Slot to populate the results table with structured data from the scan.
+
+        Args:
+            results_data (dict): Dictionary containing parsed scan results
+                                 Format: {host: {'state': ..., 'hostname': ..., 'protocols': {proto: {port: {...}}}}}
+        """
+        self.results_table.setSortingEnabled(False) # Disable sorting during population for speed
+        self.results_table.setRowCount(0) # Clear previous results
+
+        row_position = 0
+        for host, host_data in results_data.items():
+            hostname = host_data.get('hostname', '')
+            if hostname and hostname != host:
+                 display_host = f"{hostname} ({host})"
+            else:
+                 display_host = host
+
+            protocols = host_data.get('protocols', {})
+            if not protocols: # Handle hosts found but no open/filtered ports reported
+                if host_data.get('state') == 'up':
+                     self.results_table.insertRow(row_position)
+                     self.results_table.setItem(row_position, 0, QTableWidgetItem(display_host))
+                     self.results_table.setItem(row_position, 1, QTableWidgetItem("")) # Proto
+                     self.results_table.setItem(row_position, 2, QTableWidgetItem("")) # Port
+                     self.results_table.setItem(row_position, 3, QTableWidgetItem(host_data.get('state', 'unknown'))) # State
+                     self.results_table.setItem(row_position, 4, QTableWidgetItem("(No ports found/reported)")) # Service
+                     self.results_table.setItem(row_position, 5, QTableWidgetItem("")) # Product
+                     self.results_table.setItem(row_position, 6, QTableWidgetItem("")) # Version
+                     row_position += 1
+                continue # Skip hosts with no protocols if state isn't 'up'
+
+            for proto, ports in protocols.items():
+                for port, port_data in ports.items():
+                    self.results_table.insertRow(row_position)
+                    # Create QTableWidgetItem for each cell
+                    host_item = QTableWidgetItem(display_host)
+                    proto_item = QTableWidgetItem(proto)
+                    port_item = QTableWidgetItem(str(port)) # Port number needs to be string
+                    state_item = QTableWidgetItem(port_data.get('state', ''))
+                    service_item = QTableWidgetItem(port_data.get('name', ''))
+                    product_item = QTableWidgetItem(port_data.get('product', ''))
+                    version_item = QTableWidgetItem(port_data.get('version', ''))
+
+                    # Set items in the table row
+                    self.results_table.setItem(row_position, 0, host_item)
+                    self.results_table.setItem(row_position, 1, proto_item)
+                    self.results_table.setItem(row_position, 2, port_item)
+                    self.results_table.setItem(row_position, 3, state_item)
+                    self.results_table.setItem(row_position, 4, service_item)
+                    self.results_table.setItem(row_position, 5, product_item)
+                    self.results_table.setItem(row_position, 6, version_item)
+
+                    row_position += 1
+
+        self.results_table.setSortingEnabled(True) # Re-enable sorting
+        # Switch to Parsed Results tab when results are ready
+        if results_data:
+            self.tab_widget.setCurrentWidget(self.parsed_results_widget)
+
 
     def scan_complete(self, message):
         """
@@ -137,8 +234,10 @@ class MainWindow(QMainWindow):
         """
         Slot called when the scanner thread encounters an error or is stopped.
         """
-        self.statusBar().showMessage(f"Scan Error: {error_message}")
-        QMessageBox.critical(self, "Scan Error", error_message)
+        # Avoid showing duplicate error messages if the error was already in output
+        if error_message not in self.output_area.toPlainText():
+             QMessageBox.critical(self, "Scan Error / Stopped", error_message)
+        self.statusBar().showMessage(f"Scan Error / Stopped: {error_message}")
         self.scan_button.setEnabled(True)
         self.stop_button.setEnabled(False)
         self.progress_bar.setVisible(False)
@@ -155,9 +254,9 @@ class MainWindow(QMainWindow):
                                            QMessageBox.StandardButton.No)
             if reply == QMessageBox.StandardButton.Yes:
                 self.stop_scan()
-                # Wait briefly for the thread to potentially terminate (optional, might need refinement)
+                # Wait briefly for the thread to potentially terminate
                 if self.scanner_thread:
-                    self.scanner_thread.wait(1000) # Wait up to 1 second
+                    self.scanner_thread.wait(1500) # Wait up to 1.5 seconds
                 event.accept() # Close the window
             else:
                 event.ignore() # Do not close the window

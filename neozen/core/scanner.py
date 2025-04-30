@@ -1,17 +1,21 @@
 import nmap # Import the python-nmap library
 import subprocess # To potentially manage the process directly if needed
 import psutil # To find and terminate child processes
-from PyQt6.QtCore import QThread, pyqtSignal
+from PyQt6.QtCore import QThread, pyqtSignal, QObject # QObject needed for signals
 import os # For OS specific operations if needed
+import time # For potential delays if needed
 
 class Scanner(QThread):
     """
     Worker thread for running Nmap scans asynchronously.
     Uses python-nmap to interact with the Nmap executable.
+    Emits raw output during scan and structured results upon completion.
     """
     # --- Signals ---
     # Emits chunks of Nmap output (stdout/stderr or parsed info)
     scan_output = pyqtSignal(str)
+    # Emits structured scan results when the scan finishes successfully
+    scan_results_ready = pyqtSignal(dict)
     # Emits when the scan finishes successfully (passes final status message)
     scan_finished = pyqtSignal(str)
     # Emits when an error occurs or scan is stopped (passes error message)
@@ -37,56 +41,66 @@ class Scanner(QThread):
         """
         self._is_running = True
         nm = None
+        parsed_results = {} # Dictionary to hold structured results
+
         try:
             # --- Initialize python-nmap PortScanner ---
-            # We need to handle potential errors if nmap executable is not found
             try:
                 nm = nmap.PortScanner()
+                # Emit Nmap version info early
+                self.scan_output.emit(f"Using Nmap version: {nm.nmap_version()}")
             except nmap.PortScannerError as e:
                 self.scan_error.emit(f"Nmap executable not found or permission error: {e}")
                 return # Exit the thread
+            except Exception as e:
+                 self.scan_error.emit(f"Error initializing Nmap: {e}")
+                 return
 
-            self.scan_output.emit(f"Starting Nmap {nm.nmap_version()} scan on {self.target} with args: {self.arguments}")
+            self.scan_output.emit(f"Starting scan on {self.target} with args: {self.arguments}")
             self.scan_output.emit("-" * 30)
 
             # --- Execute the scan ---
-            # python-nmap's scan method blocks until the scan is complete.
-            # It internally calls the nmap executable.
-            # We need a way to potentially interrupt this.
-            # Unfortunately, python-nmap doesn't offer a non-blocking scan or
-            # direct process control easily. We might need to manage the
-            # subprocess ourselves for better 'stop' functionality later.
-            # For now, we rely on python-nmap's blocking call.
-            # The 'stop' method will try to find and kill the process.
-
             # Check if still running before starting the blocking call
             if not self._is_running:
                  self.scan_error.emit("Scan stopped before starting.")
                  return
 
             # This is the blocking call
+            # Consider adding -oX - argument to get XML output directly if needed later
             scan_result = nm.scan(hosts=self.target, arguments=self.arguments)
 
             # --- Process Results (if scan wasn't stopped) ---
             if self._is_running:
                 self.scan_output.emit("-" * 30)
-                self.scan_output.emit("Scan Results:")
+                self.scan_output.emit("Scan complete. Parsing results...")
 
-                if not nm.all_hosts():
-                    self.scan_output.emit("No hosts found or all hosts are down.")
-                else:
+                # Structure the results
+                parsed_results = {}
+                if nm.all_hosts():
                     for host in nm.all_hosts():
-                        self.scan_output.emit(f"\nHost: {host} ({nm[host].hostname()})")
-                        self.scan_output.emit(f"State: {nm[host].state()}")
+                        host_data = {
+                            'hostname': nm[host].hostname(),
+                            'state': nm[host].state(),
+                            'protocols': {}
+                        }
                         for proto in nm[host].all_protocols():
-                            self.scan_output.emit(f"Protocol: {proto}")
+                            host_data['protocols'][proto] = {}
                             ports = nm[host][proto].keys()
                             for port in sorted(ports):
-                                state = nm[host][proto][port]['state']
-                                name = nm[host][proto][port]['name']
-                                version = nm[host][proto][port]['version']
-                                product = nm[host][proto][port]['product']
-                                self.scan_output.emit(f"  Port: {port:<5}\tState: {state:<10}\tService: {name:<15}\tVersion: {product} {version}")
+                                port_info = nm[host][proto][port]
+                                host_data['protocols'][proto][port] = {
+                                    'state': port_info.get('state', 'unknown'),
+                                    'name': port_info.get('name', ''),
+                                    'version': port_info.get('version', ''),
+                                    'product': port_info.get('product', ''),
+                                    'extrainfo': port_info.get('extrainfo', ''),
+                                    'cpe': port_info.get('cpe', '')
+                                }
+                        parsed_results[host] = host_data
+                    self.scan_results_ready.emit(parsed_results) # Emit structured data
+                else:
+                     self.scan_output.emit("No hosts found or all hosts are down.")
+                     self.scan_results_ready.emit({}) # Emit empty results
 
                 # --- Emit Finished Signal ---
                 scan_info = nm.scaninfo()
@@ -117,30 +131,41 @@ class Scanner(QThread):
         self._is_running = False # Signal the run loop to stop processing results
 
         # --- Find and Terminate Nmap Process ---
-        # This is a bit complex because python-nmap doesn't expose the process object.
-        # We need to find the 'nmap' process potentially started by this script.
-        # This might require refinement depending on the OS and exact setup.
         try:
-            current_process = psutil.Process(os.getpid())
+            # Get current process PID
+            current_pid = os.getpid()
+            current_process = psutil.Process(current_pid)
+            # Find child processes named 'nmap' or 'nmap.exe'
             children = current_process.children(recursive=True)
             nmap_found = False
             for proc in children:
-                # Check if process name is 'nmap' or 'nmap.exe'
-                if proc.name().lower() in ['nmap', 'nmap.exe']:
-                    self.scan_output.emit(f"Found Nmap process (PID: {proc.pid}). Terminating...")
-                    proc.terminate() # Try graceful termination first
-                    try:
-                        proc.wait(timeout=2) # Wait a bit for it to exit
-                    except psutil.TimeoutExpired:
-                        self.scan_output.emit(f"Nmap process (PID: {proc.pid}) did not terminate gracefully. Killing...")
-                        proc.kill() # Force kill if necessary
-                    nmap_found = True
-                    break # Assume only one direct nmap child for now
-            if not nmap_found:
-                 self.scan_output.emit("Could not find running Nmap process to terminate.")
+                try:
+                    # Check if process name is 'nmap' or 'nmap.exe'
+                    if proc.name().lower() in ['nmap', 'nmap.exe']:
+                        self.scan_output.emit(f"Found Nmap process (PID: {proc.pid}). Terminating...")
+                        proc.terminate() # Try graceful termination first
+                        try:
+                            proc.wait(timeout=1) # Wait briefly
+                        except psutil.TimeoutExpired:
+                            self.scan_output.emit(f"Nmap process (PID: {proc.pid}) did not terminate gracefully. Killing...")
+                            proc.kill() # Force kill if necessary
+                        nmap_found = True
+                        # break # Decide if you expect multiple nmap children
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    # Process might have already finished or permissions issue
+                    continue
+                except Exception as term_err:
+                     self.scan_output.emit(f"Error during termination attempt for PID {proc.pid}: {term_err}")
 
+
+            if not nmap_found:
+                 self.scan_output.emit("Could not find running Nmap child process to terminate.")
+
+        except psutil.NoSuchProcess:
+             self.scan_output.emit("Current process not found (should not happen).")
         except Exception as e:
             self.scan_output.emit(f"Error trying to terminate Nmap process: {e}")
 
         # The run() method should detect self._is_running is False and exit,
         # eventually emitting scan_error("Scan stopped by user.")
+
