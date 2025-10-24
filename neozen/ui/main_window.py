@@ -19,6 +19,51 @@ from neozen.core.scanner import Scanner
 from neozen.core.profiles import ProfileManager
 from neozen.resources import get_icon_path
 
+# --- Save Scan Results Dialog ---
+class SaveScanDialog(QDialog):
+    """
+    Dialog for saving scan results with options for including raw output.
+    """
+    def __init__(self, has_raw_output=True, parent=None):
+        """
+        Initializes the save scan dialog.
+
+        Args:
+            has_raw_output (bool): Whether raw output is available
+            parent: Parent widget
+        """
+        super().__init__(parent)
+        self.setWindowTitle("Save Scan Results")
+        layout = QVBoxLayout(self)
+
+        # Information label
+        info_label = QLabel("Choose save options:")
+        layout.addWidget(info_label)
+
+        # Checkbox for including raw output
+        self.include_raw_checkbox = QCheckBox("Include raw output in XML file")
+        self.include_raw_checkbox.setChecked(True)  # Checked by default
+        self.include_raw_checkbox.setEnabled(has_raw_output)
+        if not has_raw_output:
+            self.include_raw_checkbox.setToolTip("No raw output available")
+        layout.addWidget(self.include_raw_checkbox)
+
+        # Standard OK and Cancel buttons
+        self.button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        self.button_box.accepted.connect(self.accept)
+        self.button_box.rejected.connect(self.reject)
+        layout.addWidget(self.button_box)
+
+    def include_raw_output(self):
+        """
+        Returns whether to include raw output.
+
+        Returns:
+            bool: True if raw output should be included
+        """
+        return self.include_raw_checkbox.isChecked()
+
+
 # --- Profile Save Dialog ---
 class SaveProfileDialog(QDialog):
     """
@@ -101,19 +146,12 @@ class MainWindow(QMainWindow):
         self.open_action.setStatusTip("Open saved Nmap XML scan results")
         self.open_action.triggered.connect(self.open_scan_results)
 
-        # File -> Save (XML)
-        self.save_action = QAction("&Save Scan Results (XML)...", self)
+        # File -> Save
+        self.save_action = QAction("&Save Scan Results...", self)
         self.save_action.setShortcut("Ctrl+S")
-        self.save_action.setStatusTip("Save XML results of the last completed scan")
+        self.save_action.setStatusTip("Save scan results (with optional raw output)")
         self.save_action.setEnabled(False) # Initially disabled
         self.save_action.triggered.connect(self.save_scan_results)
-
-        # File -> Save Raw Output
-        self.save_raw_action = QAction("Save &Raw Output...", self)
-        self.save_raw_action.setShortcut("Ctrl+Shift+S")
-        self.save_raw_action.setStatusTip("Save raw text output from the scan")
-        self.save_raw_action.setEnabled(False) # Initially disabled
-        self.save_raw_action.triggered.connect(self.save_raw_output)
 
         # File -> Exit
         self.exit_action = QAction("E&xit", self)
@@ -135,7 +173,6 @@ class MainWindow(QMainWindow):
         file_menu = menu_bar.addMenu("&File")
         file_menu.addAction(self.open_action)
         file_menu.addAction(self.save_action)
-        file_menu.addAction(self.save_raw_action)
         file_menu.addSeparator()
         file_menu.addAction(self.exit_action)
 
@@ -919,10 +956,8 @@ class MainWindow(QMainWindow):
         # Delete button enabled only when not scanning AND a non-custom profile is selected
         self.delete_profile_button.setEnabled(not scanning and self.profile_combo.currentIndex() > 0)
         # File menu actions
-        # Save XML enabled only when not scanning AND results from last scan exist
+        # Save enabled only when not scanning AND results from last scan exist
         self.save_action.setEnabled(not scanning and bool(self.last_scan_xml_path and os.path.exists(self.last_scan_xml_path)))
-        # Save raw output enabled when not scanning AND output area has content
-        self.save_raw_action.setEnabled(not scanning and bool(self.output_area.toPlainText().strip()))
         self.open_action.setEnabled(not scanning) # Allow opening when idle
 
         # Clear the temporary file path and reset saved flag when starting a new scan
@@ -1054,9 +1089,36 @@ class MainWindow(QMainWindow):
                           host_info = f"({num_hosts} host(s) up / {total_hosts} total)"
                      QMessageBox.information(self, "Scan Info", f"Loaded file contains scan summary but no detailed host results {host_info}.")
 
+                # --- Extract raw output if embedded ---
+                raw_output_text = None
+                try:
+                    with open(filename, 'r', encoding='utf-8') as f:
+                        xml_content = f.read()
+
+                    # Look for embedded raw output
+                    if '<!-- NEOZEN_RAW_OUTPUT' in xml_content:
+                        start_marker = '<!-- NEOZEN_RAW_OUTPUT\n'
+                        end_marker = '\nNEOZEN_RAW_OUTPUT -->'
+                        start_idx = xml_content.find(start_marker)
+                        end_idx = xml_content.find(end_marker, start_idx)
+
+                        if start_idx != -1 and end_idx != -1:
+                            start_idx += len(start_marker)
+                            raw_output_text = xml_content[start_idx:end_idx]
+                            # Unescape comment terminators
+                            raw_output_text = raw_output_text.replace('--&gt;', '-->')
+                except Exception as e:
+                    print(f"Error extracting raw output: {e}")
+
                 # Update UI with loaded data
                 self.current_scan_data = parsed_results # Store loaded data
-                self.output_area.setText(f"--- Results loaded from: {filename} ---\n\n(Raw output not available for loaded files)")
+
+                # Display raw output if available, otherwise show placeholder
+                if raw_output_text:
+                    self.output_area.setText(raw_output_text)
+                else:
+                    self.output_area.setText(f"--- Results loaded from: {filename} ---\n\n(Raw output was not saved with this scan)")
+
                 self.display_parsed_results_table(parsed_results) # Update table
 
                 # Load notes if they exist
@@ -1079,8 +1141,8 @@ class MainWindow(QMainWindow):
 
     def save_scan_results(self):
         """
-        Prompts the user for a filename and copies the temporary XML result file
-        from the last completed scan to the chosen location.
+        Prompts the user for save options and filename, then saves the scan results.
+        Optionally embeds raw output in the XML file.
 
         Returns:
             bool: True on success, False on failure or cancellation.
@@ -1090,79 +1152,67 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "No Results", "No scan results available to save. Please run a scan first.")
             return False
 
+        # Check if raw output is available
+        raw_output = self.output_area.toPlainText().strip()
+        has_raw_output = bool(raw_output)
+
+        # Show save options dialog
+        options_dialog = SaveScanDialog(has_raw_output=has_raw_output, parent=self)
+        if options_dialog.exec() != QDialog.DialogCode.Accepted:
+            self._current_status_message = "Save cancelled."
+            self._check_and_warn_privileged_scan()
+            return False
+
+        include_raw = options_dialog.include_raw_output()
+
         # Suggest a default filename
         suggested_filename = "nmap_scan_results.xml"
         # Open "Save As" dialog
         filename, _ = QFileDialog.getSaveFileName(
-            self, "Save Nmap Scan Results (XML)", suggested_filename,
+            self, "Save Nmap Scan Results", suggested_filename,
             "Nmap XML Files (*.xml);;All Files (*)"
         )
 
         # Proceed only if a filename was provided (user didn't cancel)
         if filename:
             try:
-                # Copy the temporary file to the desired location
-                shutil.copyfile(self.last_scan_xml_path, filename)
+                # Read the original XML content
+                with open(self.last_scan_xml_path, 'r', encoding='utf-8') as f:
+                    xml_content = f.read()
+
+                # If user wants to include raw output, embed it in the XML
+                if include_raw and raw_output:
+                    # Insert raw output as a comment near the end of the XML file (before </nmaprun>)
+                    raw_output_escaped = raw_output.replace('-->', '--&gt;')  # Escape comment terminators
+                    raw_comment = f"\n<!-- NEOZEN_RAW_OUTPUT\n{raw_output_escaped}\nNEOZEN_RAW_OUTPUT -->\n"
+
+                    # Insert before closing nmaprun tag
+                    if '</nmaprun>' in xml_content:
+                        xml_content = xml_content.replace('</nmaprun>', f"{raw_comment}</nmaprun>")
+                    else:
+                        # If no closing tag, append at end
+                        xml_content += raw_comment
+
+                # Write the modified XML to the target file
+                with open(filename, 'w', encoding='utf-8') as f:
+                    f.write(xml_content)
 
                 # Save notes if any exist
                 if self.host_notes:
                     base_filename = os.path.splitext(filename)[0]  # Remove .xml extension
                     self.save_notes_to_file(base_filename)
 
-                self._current_status_message = f"Scan results (XML) saved to {filename}"
+                status_msg = f"Scan results saved to {filename}"
+                if include_raw and raw_output:
+                    status_msg += " (with raw output)"
+                self._current_status_message = status_msg
                 self._check_and_warn_privileged_scan()
                 self.results_saved = True  # Mark results as saved
                 return True # Indicate success
             except Exception as e:
-                # Handle errors during file copy
+                # Handle errors during file operations
                 QMessageBox.critical(self, "Save Error", f"Could not save results to {filename}:\n{e}")
                 self._current_status_message = f"Error saving results: {e}"
-                self._check_and_warn_privileged_scan()
-                return False # Indicate failure
-        else:
-            # User cancelled the save dialog
-            self._current_status_message = "Save cancelled."
-            self._check_and_warn_privileged_scan()
-            return False # Indicate cancellation
-
-    def save_raw_output(self):
-        """
-        Prompts the user for a filename and saves the raw text output
-        from the output area to a text file.
-
-        Returns:
-            bool: True on success, False on failure or cancellation.
-        """
-        # Get the raw output text
-        raw_output = self.output_area.toPlainText()
-
-        # Check if there's any output to save
-        if not raw_output.strip():
-            QMessageBox.warning(self, "No Output", "No raw output available to save. Please run a scan first.")
-            return False
-
-        # Suggest a default filename
-        suggested_filename = "nmap_raw_output.txt"
-        # Open "Save As" dialog
-        filename, _ = QFileDialog.getSaveFileName(
-            self, "Save Raw Output", suggested_filename,
-            "Text Files (*.txt);;All Files (*)"
-        )
-
-        # Proceed only if a filename was provided (user didn't cancel)
-        if filename:
-            try:
-                # Write the raw output to the file
-                with open(filename, 'w', encoding='utf-8') as f:
-                    f.write(raw_output)
-                self._current_status_message = f"Raw output saved to {filename}"
-                self._check_and_warn_privileged_scan()
-                self.results_saved = True  # Mark results as saved
-                return True # Indicate success
-            except Exception as e:
-                # Handle errors during file writing
-                QMessageBox.critical(self, "Save Error", f"Could not save raw output to {filename}:\n{e}")
-                self._current_status_message = f"Error saving raw output: {e}"
                 self._check_and_warn_privileged_scan()
                 return False # Indicate failure
         else:
