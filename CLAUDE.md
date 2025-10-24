@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-NeoZen is a modern, cross-platform GUI for Nmap built with Python 3 and PyQt6. It aims to replace the aging Zenmap with a more maintainable and feature-rich interface. The project uses subprocess-based Nmap execution for better control and live output streaming.
+NeoZen is a modern, cross-platform interface for Nmap built with Python 3. It offers both a rich desktop GUI (PyQt6) and a browser-based web dashboard (Flask), providing flexibility for different use cases. The project uses a layered architecture with a pure Python core that is GUI-framework agnostic, allowing the same Nmap logic to power different interfaces.
 
 ## Development Commands
 
@@ -30,39 +30,134 @@ python -m pip install -r requirements.txt
 ```
 
 ### Dependencies
-- PyQt6: GUI framework
+
+**Core dependencies (always required):**
 - python-nmap: XML parsing library for Nmap output
 - psutil: Process management for stopping scans and child processes
 
+**Optional dependencies (interface-specific):**
+- PyQt6: Desktop GUI framework (`pip install -e ".[desktop]"`)
+- Flask + Flask-SocketIO: Web dashboard (`pip install -e ".[web]"`)
+
+**Installation:**
+```bash
+# Desktop GUI only
+pip install -e ".[desktop]"
+
+# Web dashboard only
+pip install -e ".[web]"
+
+# Both interfaces
+pip install -e ".[all]"
+```
+
 ## Architecture
 
-### Core Structure
+NeoZen follows a **layered architecture** that separates core business logic from UI frameworks:
 
-The application follows a clean separation between UI and business logic:
+### Layer 1: Pure Python Core (GUI-agnostic)
 
-- **main.py**: Entry point that creates QApplication and MainWindow
-- **neozen/ui/main_window.py**: Main UI class (MainWindow) containing all GUI logic, profile management, and scan coordination
-- **neozen/core/scanner.py**: Background thread (Scanner) that executes Nmap via subprocess, captures live output, and parses XML results
-- **neozen/core/profiles.py**: Profile persistence layer (ProfileManager) with platform-specific config directory handling
-- **neozen/core/models.py**: Placeholder for future data models (currently minimal)
+**Location:** `neozen/core/`
+
+- **scanner_core.py**: `NmapScanner` class - Pure Python threading.Thread implementation
+  - Executes Nmap via subprocess
+  - Captures live output
+  - Parses XML results
+  - Uses **callbacks** instead of framework-specific signals
+  - No GUI dependencies - can be used standalone
+
+- **profiles.py**: `ProfileManager` - Profile persistence with platform-specific paths
+- **models.py**: Data models (currently minimal)
+
+**Key Design:** The core scanner uses callback functions for communication:
+```python
+scanner = NmapScanner(
+    target="192.168.1.1",
+    arguments="-sV -T4",
+    on_output=lambda text: print(text),
+    on_results=lambda results: process(results),
+    on_finished=lambda msg, path: cleanup(path),
+    on_error=lambda err: handle_error(err)
+)
+scanner.start()
+```
+
+### Layer 2: GUI Adapters (Framework-specific)
+
+**Location:** `neozen/adapters/`
+
+Adapters wrap the core scanner for specific frameworks:
+
+- **qt_scanner.py**: `QtScannerAdapter` - Wraps `NmapScanner` with PyQt6 signals
+  - Translates callbacks → PyQt signals
+  - Maintains backward compatibility with old `Scanner` API
+  - Used by desktop GUI
+
+- **web_scanner.py**: `WebScannerAdapter` - Wraps `NmapScanner` for Flask/SocketIO
+  - Translates callbacks → SocketIO events
+  - No PyQt6 dependency
+  - Used by web dashboard
+
+**Example Qt Adapter:**
+```python
+from neozen.adapters.qt_scanner import QtScannerAdapter
+
+scanner = QtScannerAdapter(target, arguments)
+scanner.scan_output.connect(self.handle_output)  # Qt signal!
+scanner.start()
+```
+
+### Layer 3: UI Implementations
+
+**Desktop GUI:** `neozen/ui/`
+- Uses `QtScannerAdapter`
+- PyQt6-based rich desktop application
+- Entry point: `main.py`
+
+**Web Dashboard:** `neozen/web/`
+- Uses `NmapScanner` directly with custom callbacks
+- Flask + SocketIO for real-time updates
+- Browser-based interface
+- Entry point: `neozen/web/app.py`
 
 ### Threading Model
 
-The Scanner class inherits from QThread and runs Nmap scans asynchronously:
-- Uses subprocess.Popen for process control and live output capture
-- Emits PyQt signals (scan_output, scan_results_ready, scan_finished, scan_error) to communicate with MainWindow
-- Runs with `-oX` flag to save XML to a temporary file, which is parsed after completion
-- Stop functionality uses psutil to properly terminate Nmap and all child processes
+- **Core**: Uses Python's `threading.Thread` for portability
+- **Qt Adapter**: Wraps thread with QObject for signal emission
+- **Web**: Direct threading with SocketIO event emission
+- Process control via subprocess.Popen
+- Cleanup via psutil (terminates Nmap and child processes)
+
+### Architecture Benefits
+
+This layered design provides significant advantages:
+
+1. **Separation of Concerns**: Core scanning logic is independent of UI framework
+2. **Reduced Dependencies**:
+   - Web container: No PyQt6 (~100MB smaller)
+   - CLI tool: No GUI dependencies
+3. **Flexibility**: Easy to add new interfaces (CLI, API server, mobile)
+4. **Testability**: Core logic can be tested without GUI framework
+5. **Reusability**: Same scanner core powers all interfaces
+6. **Maintainability**: Changes to core don't affect adapters, and vice versa
 
 ### Data Flow
 
+**Desktop GUI:**
 1. User configures scan in MainWindow (target, profile, arguments)
-2. MainWindow creates Scanner thread with target and arguments
-3. Scanner builds command, starts subprocess, and streams output via scan_output signal
-4. Scanner saves XML to temp file, parses it using python-nmap's analyse_nmap_xml_scan()
-5. Scanner emits structured results dict via scan_results_ready signal
-6. MainWindow populates results table and host details area
-7. Temp XML file path is passed back for optional user save
+2. MainWindow creates `QtScannerAdapter` with target and arguments
+3. MainWindow connects Qt signals to handler methods
+4. Adapter creates `NmapScanner` with callbacks that emit Qt signals
+5. Scanner executes Nmap, streams output via callbacks → Qt signals
+6. Scanner parses XML results, emits via callbacks → Qt signals
+7. MainWindow receives signals and updates UI
+
+**Web Dashboard:**
+1. User submits scan via browser
+2. Flask endpoint creates `NmapScanner` with custom callbacks
+3. Callbacks update global state AND emit SocketIO events
+4. Browser receives real-time updates via WebSocket
+5. REST API endpoints provide scan status and results
 
 ### Results Data Structure
 
@@ -141,17 +236,38 @@ MainWindow.closeEvent() handles:
 ## Development Phases
 
 The project follows a phased development approach (see README):
-- **Phases 1-5**: Core functionality complete (UI, scanning, results display, file operations, advanced features)
-- **Phase 6**: Planned topology view (network map visualization)
-- **Phase 7**: Planned packaging for distribution (executables for Windows/macOS/Linux)
+- **Phases 1-7**: Core functionality complete (UI, scanning, results display, file operations, advanced features, packaging)
+- **Phase 8**: Containerization complete (Docker support for desktop and web)
+- **Phase 9**: Web Dashboard complete (browser-based interface)
+- **Phase 10** (Refactoring): Architecture refactored to decouple core from GUI frameworks
+- **Phase 6**: Still planned - topology view (network map visualization)
+
+## Refactoring (v0.2.0)
+
+In version 0.2.0, the architecture was refactored to separate concerns:
+
+**Before:** Core scanner inherited from `QThread` and used PyQt signals, tightly coupling it to PyQt6.
+
+**After:** Layered architecture with:
+- Pure Python core (`NmapScanner`) using callbacks
+- Framework-specific adapters (`QtScannerAdapter`, `WebScannerAdapter`)
+- UI implementations using appropriate adapters
+
+**Benefits:**
+- Web interface no longer requires PyQt6 (~100MB reduction in dependencies)
+- Core scanner can be used standalone or in CLI tools
+- Easy to add new interfaces without modifying core
+- Better testability and maintainability
+
+**Migration:** Existing code using `Scanner` was updated to use `QtScannerAdapter`, which maintains API compatibility.
 
 ## Code Style Notes
 
-- Extensive comments explaining logic, especially in Scanner thread
+- Extensive comments explaining logic, especially in scanner core
 - Uses f-strings for string formatting
 - Type hints are minimal (Python 3.7+ compatible)
-- Signal/slot pattern for UI communication
-- Error handling with try/except blocks, errors displayed via QMessageBox
+- Callback pattern for core, signal/slot for Qt adapter
+- Error handling with try/except blocks
 
 ## External Dependencies
 

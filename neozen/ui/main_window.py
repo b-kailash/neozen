@@ -15,7 +15,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtGui import QAction, QFont, QIcon # Added QFont and QIcon
 from PyQt6.QtCore import Qt, pyqtSignal, QThread
-from neozen.core.scanner import Scanner
+from neozen.adapters.qt_scanner import QtScannerAdapter as Scanner
 from neozen.core.profiles import ProfileManager
 from neozen.resources import get_icon_path
 

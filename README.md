@@ -128,6 +128,35 @@ NeoZen is a modern, cross-platform graphical user interface (GUI) for the powerf
 * Themes and user preferences
 * Scheduled/automated scans
 
+## Architecture
+
+NeoZen follows a **layered architecture** that separates core business logic from UI frameworks:
+
+### Layers
+
+1. **Core Layer** (`neozen/core/`) - Pure Python, no GUI dependencies
+   - `scanner_core.py` - Nmap execution with callbacks
+   - `profiles.py` - Profile management
+   - `models.py` - Data models
+
+2. **Adapter Layer** (`neozen/adapters/`) - Framework-specific wrappers
+   - `qt_scanner.py` - PyQt6 adapter for desktop GUI
+   - `web_scanner.py` - Flask adapter for web dashboard
+
+3. **UI Layer** - User interfaces
+   - `neozen/ui/` - PyQt6 desktop application
+   - `neozen/web/` - Flask web dashboard
+
+### Benefits
+
+This design allows:
+- **Web interface without PyQt6** (~100MB smaller container)
+- **Easy addition of new interfaces** (CLI, API, mobile)
+- **Core logic testable** without GUI framework
+- **Better maintainability** - changes to core don't affect UIs
+
+For detailed architecture documentation, see [ARCHITECTURE_ANALYSIS.md](ARCHITECTURE_ANALYSIS.md).
+
 ## Prerequisites
 
 * **Nmap:** Must be installed separately and available in your system's PATH. Download from [nmap.org](https://nmap.org).

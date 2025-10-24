@@ -12,7 +12,6 @@ import os
 from pathlib import Path
 from datetime import datetime
 
-from neozen.core.scanner import Scanner
 from neozen.core.profiles import ProfileManager
 
 # Initialize Flask app
@@ -98,19 +97,43 @@ def start_scan():
         return jsonify({'error': 'Target is required'}), 400
 
     with scan_lock:
-        if current_scanner and current_scanner.isRunning():
+        if current_scanner and current_scanner.is_alive():
             return jsonify({'error': 'A scan is already running'}), 409
 
         # Clear previous scan data
         scan_output = []
         scan_results = {}
 
-        # Create and configure scanner
-        current_scanner = Scanner(target, arguments)
-        current_scanner.scan_output.connect(handle_scan_output)
-        current_scanner.scan_results_ready.connect(handle_scan_results)
-        current_scanner.scan_finished.connect(handle_scan_finished)
-        current_scanner.scan_error.connect(handle_scan_error)
+        # Create core scanner with custom callbacks for state management + SocketIO
+        from neozen.core.scanner_core import NmapScanner
+
+        def on_output_callback(text):
+            """Handle output: update state and emit SocketIO event"""
+            scan_output.append(text)
+            socketio.emit('scan_output', {'text': text})
+
+        def on_results_callback(results):
+            """Handle results: update state and emit SocketIO event"""
+            nonlocal scan_results
+            scan_results = results
+            socketio.emit('scan_results', {'results': results})
+
+        def on_finished_callback(message, xml_path):
+            """Handle completion: emit SocketIO event"""
+            socketio.emit('scan_finished', {'message': message, 'xml_path': xml_path})
+
+        def on_error_callback(error):
+            """Handle errors: emit SocketIO event"""
+            socketio.emit('scan_error', {'error': error})
+
+        # Create scanner with custom callbacks
+        current_scanner = NmapScanner(
+            target, arguments,
+            on_output=on_output_callback,
+            on_results=on_results_callback,
+            on_finished=on_finished_callback,
+            on_error=on_error_callback
+        )
 
         # Start scan
         current_scanner.start()
@@ -127,7 +150,7 @@ def stop_scan():
     global current_scanner
 
     with scan_lock:
-        if current_scanner and current_scanner.isRunning():
+        if current_scanner and current_scanner.is_alive():
             current_scanner.stop()
             socketio.emit('scan_stopped', {})
             return jsonify({'success': True, 'message': 'Scan stopped'})
@@ -141,7 +164,7 @@ def scan_status():
     global current_scanner
 
     with scan_lock:
-        is_running = current_scanner and current_scanner.isRunning()
+        is_running = current_scanner and current_scanner.is_alive()
         return jsonify({
             'running': is_running,
             'output_lines': len(scan_output),
@@ -159,35 +182,6 @@ def get_scan_output():
 def get_scan_results():
     """Get current scan results"""
     return jsonify({'results': scan_results})
-
-
-# --- Signal Handlers ---
-
-def handle_scan_output(text):
-    """Handle scan output from Scanner"""
-    global scan_output
-    scan_output.append(text)
-    socketio.emit('scan_output', {'text': text})
-
-
-def handle_scan_results(results):
-    """Handle scan results from Scanner"""
-    global scan_results
-    scan_results = results
-    socketio.emit('scan_results', {'results': results})
-
-
-def handle_scan_finished(message, temp_xml_path):
-    """Handle scan completion"""
-    socketio.emit('scan_finished', {
-        'message': message,
-        'xml_path': temp_xml_path
-    })
-
-
-def handle_scan_error(error_message):
-    """Handle scan errors"""
-    socketio.emit('scan_error', {'error': error_message})
 
 
 # --- WebSocket Events ---

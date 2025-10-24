@@ -4,17 +4,17 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "neozen"
-version = "0.1.0"
-description = "A modern, cross-platform GUI for Nmap"
+version = "0.2.0"
+description = "A modern, cross-platform GUI for Nmap with desktop and web interfaces"
 readme = "README.md"
 requires-python = ">=3.7"
 license = {text = "MIT"}
 authors = [
     {name = "NeoZen Contributors"}
 ]
-keywords = ["nmap", "security", "network", "scanner", "gui"]
+keywords = ["nmap", "security", "network", "scanner", "gui", "web"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: System Administrators",
     "Intended Audience :: Information Technology",
     "Topic :: System :: Networking",
@@ -29,23 +29,43 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 
+# Core dependencies - NO GUI frameworks!
+# Pure Python scanner can be used independently
 dependencies = [
-    "PyQt6>=6.0.0",
     "python-nmap>=0.7.1",
     "psutil>=5.9.0",
 ]
 
 [project.optional-dependencies]
+# Desktop GUI dependencies
+desktop = [
+    "PyQt6>=6.0.0",
+]
+
+# Web dashboard dependencies (no PyQt6!)
+web = [
+    "flask>=2.3.0",
+    "flask-socketio>=5.3.0",
+    "flask-cors>=4.0.0",
+    "python-socketio>=5.9.0",
+]
+
+# Development dependencies
 dev = [
     "pytest>=7.0.0",
     "pytest-qt>=4.0.0",
     "black>=22.0.0",
     "ruff>=0.1.0",
 ]
+
+# Build dependencies
 build = [
     "pyinstaller>=5.0.0",
 ]
-web = [
+
+# All optional dependencies (desktop + web)
+all = [
+    "PyQt6>=6.0.0",
     "flask>=2.3.0",
     "flask-socketio>=5.3.0",
     "flask-cors>=4.0.0",
