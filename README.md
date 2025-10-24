@@ -3,47 +3,95 @@
 ![NeoZen Placeholder Logo](https://placehold.co/600x150/7e22ce/white?text=NeoZen)
 *(Replace with an actual logo later)*
 
-NeoZen aims to be a modern, cross-platform graphical user interface (GUI) for the powerful Nmap network scanner. It is built using Python 3 and the PyQt6 framework, providing a user-friendly alternative to the classic (but aging) Zenmap.
+NeoZen is a modern, cross-platform graphical user interface (GUI) for the powerful Nmap network scanner. Built using Python 3 and the PyQt6 framework, it provides a feature-rich, user-friendly alternative to the classic Zenmap.
 
-This project is currently under development.
+**Key Highlights:**
+- 🎨 Modern, intuitive interface with polished design
+- 🔧 Visual Custom Scan Builder with intelligent option compatibility
+- 📊 Real-time scan results with comprehensive host details
+- 💾 Standalone executables - no Python installation required
+- 🔍 Default OS and service version detection enabled
+- 📝 Host documentation with persistent notes
+- 💻 Cross-platform support (Linux, macOS, Windows)
 
-## Features (Implemented & Planned)
+**Status:** Active development - Core features complete, advanced features in progress.
 
-**Current Features (as of Phase 5 completion):**
+## Features
 
-* **Modern UI:** Built with Python 3 and PyQt6.
-* **Scan Configuration:**
-    * Target input (IP, hostname, network range).
-    * Selection of common predefined scan types (Intense, Quick, Ping, etc.).
-    * Custom Nmap argument input.
-    * Profile Management: Save and load custom scan configurations (target + arguments).
-    * Live Command Display: See the exact Nmap command that will be executed.
-* **Scan Execution:**
-    * Runs Nmap scans in a background thread to keep the UI responsive.
-    * Ability to stop running scans.
-    * Progress bar for running scans.
-    * Privilege Warning: Notifies the user in the status bar if selected options likely require admin/root privileges.
-* **Results Display:**
-    * **Raw Output Tab:** Shows the live, human-readable output from Nmap as the scan runs.
-    * **Parsed Results Tab:** Displays scan results in a sortable table (Host, Proto, Port, State, Service, Product, Version).
-    * **Host Details Area:** (Always visible below tabs) Displays detailed information for the host selected in the Parsed Results table, including:
-        * Hostname, IP Address, State
-        * MAC Address and Vendor (if available)
-        * OS Detection results (guesses and accuracy)
-        * Detailed Port/Service list
-        * NSE Script output (both host-level and port-level)
-* **File Operations:**
-    * Save completed scan results to an Nmap XML file.
-    * Open and display results from previously saved Nmap XML files.
-    * Prompt to save unsaved results on application close.
+### ✅ Completed Features
 
-**Planned Features:**
+#### **Modern UI & Design**
+* Built with Python 3 and PyQt6
+* Modern, polished interface with custom styling
+* Application icon for branding
+* Resizable split views for optimal workspace
 
-* **Phase 6:** Topology View (Graphical network map).
-* **Phase 7:** Packaging & Distribution (Standalone executables for Windows, macOS, Linux).
-* More detailed scan configuration options (UI controls for specific flags).
-* Scan comparison functionality.
-* Advanced UI polish (icons, themes, user preferences).
+#### **Advanced Scan Configuration**
+* Target input (IP, hostname, network range)
+* **OS Detection Checkbox** - Enable/disable OS detection (-O flag) with one click (enabled by default)
+* **Service Version Detection Checkbox** - Enable/disable service/version detection (-sV flag) with one click (enabled by default)
+* **Visual Custom Scan Builder** - Interactive dialog for building custom scan commands with:
+  * Scan techniques (TCP SYN, Connect, UDP, ACK, Window, Null, FIN, Xmas, Ping)
+  * Port specifications (Fast, All Ports, Top 1-1000)
+  * Timing templates (T0-T5)
+  * Detection options (OS, Service Version, Scripts, Aggressive)
+  * Other options (Verbose, Reason, Packet Trace, No DNS)
+  * **Intelligent compatibility system** - incompatible options automatically greyed out
+  * Real-time command preview
+* Selection of common predefined scan types (Intense, Quick, Ping, etc.)
+* Custom Nmap argument input with live command display
+* **Profile Management** - Save and load custom scan configurations (target + arguments)
+* Live Command Display - See the exact Nmap command that will be executed
+
+#### **Scan Execution**
+* Background thread execution - keeps UI responsive during scans
+* Ability to stop running scans gracefully
+* Progress bar for running scans
+* **Privilege Warning** - Real-time status bar notifications for scans requiring admin/root privileges
+
+#### **Results Display & Analysis**
+* **Raw Output Tab** - Live, human-readable output from Nmap as the scan runs
+* **Parsed Results Tab** - Sortable table view (Host, Proto, Port, State, Service, Product, Version)
+* **Host Details Area** - Comprehensive information for selected hosts:
+  * Hostname, IP Address, State
+  * MAC Address and Vendor (if available)
+  * OS Detection results (guesses and accuracy)
+  * Detailed Port/Service list
+  * NSE Script output (both host-level and port-level)
+* **Host Notes Feature** - Add and save documentation notes for each scanned host
+
+#### **File Operations**
+* Save scan results to Nmap XML files
+* **Raw Output Embedding** - Option to embed raw console output in XML files for complete preservation
+* Open and display results from previously saved Nmap XML files
+* **Notes Persistence** - Host notes saved alongside scan results
+* Prompt to save unsaved results on application close
+* Extract and display embedded raw output from saved files
+
+#### **Distribution & Packaging** ✨
+* **Standalone Executables** - Built automatically during installation
+  * Linux/macOS: Single `neozen` executable
+  * Windows: Single `neozen.exe` executable
+  * No Python or dependencies required to run
+* Cross-platform build system (PyInstaller)
+* Automated installation scripts with integrated build process
+* Make targets for easy building
+
+### 🚧 Planned Features
+
+#### **Phase 6: Topology View**
+* Graphical network map visualization
+* Visual representation of discovered hosts
+* Interactive network topology diagram
+
+#### **Future Enhancements**
+* Scan comparison functionality
+* Scan history and management
+* Export results to multiple formats (CSV, JSON, HTML)
+* Advanced filtering and search in results
+* Custom NSE script management
+* Themes and user preferences
+* Scheduled/automated scans
 
 ## Prerequisites
 
@@ -148,14 +196,20 @@ python main.py
 
 ### Using the Application
 
-1. Enter a target (IP address, hostname, or network range)
-2. Select a scan profile or customize Nmap arguments
-3. Click "Scan" to start
-4. View results in real-time in the Raw Output tab
-5. Explore parsed results in the Parsed Results tab
-6. Save results via File > Save Scan Results
+1. **Enter a target** (IP address, hostname, or network range)
+2. **Configure your scan:**
+   - Enable/disable **OS Detection** and **Service Version Detection** checkboxes (both enabled by default)
+   - Select a predefined scan profile, or
+   - Click **"Build Custom Scan..."** to use the visual scan builder, or
+   - Manually enter custom Nmap arguments
+3. **Click "Scan"** to start
+4. **View results** in real-time:
+   - **Raw Output tab** - Live console output from Nmap
+   - **Parsed Results tab** - Structured table view
+5. **Select a host** to see detailed information and add notes
+6. **Save results** via File > Save Scan Results (option to include raw output)
 
-**Note:** Some scan types require administrator/root privileges. NeoZen will warn you in the status bar when privileged scans are selected.
+**Note:** Some scan types require administrator/root privileges. NeoZen will display a warning in the status bar when privileged scans are selected. The OS Detection feature (-O) requires elevated privileges.
 
 ## Building Standalone Executables
 
