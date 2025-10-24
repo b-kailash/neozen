@@ -2,7 +2,11 @@ import json
 import os
 from pathlib import Path
 import sys
-import platform # Import platform module
+import platform  # Import platform module
+import logging
+
+# Set up logging for this module
+logger = logging.getLogger(__name__)
 
 class ProfileManager:
     """
@@ -20,7 +24,7 @@ class ProfileManager:
                             Defaults to "scan_profiles.json".
         """
         self.profile_path = self._get_profile_path(filename)
-        # print(f"[Debug] Profile path set to: {self.profile_path}") # Debug print commented out
+        logger.debug(f"Profile path set to: {self.profile_path}")
 
     def _get_profile_path(self, filename):
         """
@@ -59,12 +63,12 @@ class ProfileManager:
         try:
             config_dir.mkdir(parents=True, exist_ok=True)
         except OSError as e:
-            print(f"[Warning] Could not create config directory {config_dir}: {e}")
+            logger.warning(f"Could not create config directory {config_dir}: {e}")
             # Fallback to current directory if config dir creation fails
             config_dir = Path(".")
         except Exception as e:
-             print(f"[Warning] Unexpected error creating config directory {config_dir}: {e}")
-             config_dir = Path(".")
+            logger.warning(f"Unexpected error creating config directory {config_dir}: {e}")
+            config_dir = Path(".")
 
 
         # Return the full path to the profile file
@@ -81,8 +85,8 @@ class ProfileManager:
         """
         # Check if the profile file exists
         if not self.profile_path.exists():
-            print(f"[Info] Profile file not found at {self.profile_path}. Starting fresh.")
-            return {} # Return empty dict if file doesn't exist
+            logger.info(f"Profile file not found at {self.profile_path}. Starting fresh.")
+            return {}  # Return empty dict if file doesn't exist
 
         # Try to open and read the file
         try:
@@ -90,22 +94,22 @@ class ProfileManager:
                 profiles = json.load(f)
                 # Basic validation: ensure the loaded data is a dictionary
                 if not isinstance(profiles, dict):
-                    print(f"[Warning] Profile file {self.profile_path} does not contain a valid dictionary. Ignoring.")
+                    logger.warning(f"Profile file {self.profile_path} does not contain a valid dictionary. Ignoring.")
                     return {}
-                print(f"[Info] Successfully loaded profiles from {self.profile_path}")
+                logger.info(f"Successfully loaded profiles from {self.profile_path}")
                 return profiles
         except json.JSONDecodeError as e:
             # Handle errors if the file contains invalid JSON
-            print(f"[Error] Could not decode JSON from {self.profile_path}: {e}. Starting with empty profiles.")
+            logger.error(f"Could not decode JSON from {self.profile_path}: {e}. Starting with empty profiles.")
             return {}
         except OSError as e:
             # Handle file system errors (e.g., permission denied)
-            print(f"[Error] Could not read profile file {self.profile_path}: {e}")
+            logger.error(f"Could not read profile file {self.profile_path}: {e}")
             return {}
         except Exception as e:
-             # Catch any other unexpected errors during loading
-             print(f"[Error] An unexpected error occurred loading profiles: {e}")
-             return {}
+            # Catch any other unexpected errors during loading
+            logger.error(f"An unexpected error occurred loading profiles: {e}")
+            return {}
 
 
     def save_profiles(self, profiles):
@@ -125,20 +129,20 @@ class ProfileManager:
             with open(self.profile_path, 'w', encoding='utf-8') as f:
                 # Dump the dictionary to the file as JSON, with indentation for readability
                 json.dump(profiles, f, indent=4)
-            print(f"[Info] Successfully saved profiles to {self.profile_path}")
+            logger.info(f"Successfully saved profiles to {self.profile_path}")
             return True
         except OSError as e:
             # Handle file system errors during writing
-            print(f"[Error] Could not write profile file {self.profile_path}: {e}")
+            logger.error(f"Could not write profile file {self.profile_path}: {e}")
             return False
         except TypeError as e:
-             # Handle errors if the profiles dictionary contains non-serializable types
-             print(f"[Error] Could not serialize profiles to JSON: {e}")
-             return False
+            # Handle errors if the profiles dictionary contains non-serializable types
+            logger.error(f"Could not serialize profiles to JSON: {e}")
+            return False
         except Exception as e:
-             # Catch any other unexpected errors during saving
-             print(f"[Error] An unexpected error occurred saving profiles: {e}")
-             return False
+            # Catch any other unexpected errors during saving
+            logger.error(f"An unexpected error occurred saving profiles: {e}")
+            return False
 
 # Example usage block (only runs if the script is executed directly)
 if __name__ == "__main__":

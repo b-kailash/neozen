@@ -50,38 +50,149 @@ This project is currently under development.
 * **Python 3:** Version 3.7 or higher recommended.
 * **Nmap:** Must be installed separately and available in your system's PATH. Download from [nmap.org](https://nmap.org).
 
-## Installation
+## Quick Installation
+
+NeoZen now includes automated installation scripts that handle everything for you!
+
+### Linux / macOS
+
+```bash
+# Clone the repository
+git clone <your-repository-url>
+cd neozen
+
+# Run the installation script
+./install.sh
+```
+
+The script will:
+- Check for Python 3 and Nmap
+- Attempt to install Nmap if missing (requires sudo)
+- Create a virtual environment
+- Install all dependencies
+
+### Windows
+
+```cmd
+REM Clone the repository
+git clone <your-repository-url>
+cd neozen
+
+REM Run the installation script
+install.bat
+```
+
+The script will check for Python 3 and Nmap and guide you through installation if needed.
+
+### Alternative: Using Make (Linux/macOS)
+
+If you have `make` installed:
+
+```bash
+make install    # Install NeoZen
+make run        # Run the application
+```
+
+### Manual Installation
+
+If you prefer to install manually:
 
 1.  **Clone the repository:**
     ```bash
     git clone <your-repository-url>
-    cd neozen_project
+    cd neozen
     ```
+
 2.  **Create and activate a virtual environment:**
     ```bash
-    # Create venv (use python3 if python points to Python 2)
-    python -m venv venv
+    python3 -m venv venv
 
-    # Activate venv
-    # Windows (cmd/powershell):
-    .\venv\Scripts\activate
-    # macOS/Linux (bash/zsh):
+    # Linux/macOS:
     source venv/bin/activate
+
+    # Windows:
+    .\venv\Scripts\activate
     ```
-3.  **Install dependencies:**
+
+3.  **Install NeoZen:**
     ```bash
-    # Ensure pip is using the venv's Python
-    python -m pip install -r requirements.txt
+    pip install -e .
     ```
 
 ## Usage
 
-1.  Make sure your virtual environment is activated.
-2.  Run the main application script from the project root directory:
-    ```bash
-    python main.py
-    ```
-3.  Enter a target, select a scan profile or options, and click "Scan".
+### After Quick Installation
+
+```bash
+# Linux/macOS
+source venv/bin/activate
+neozen
+
+# Or directly:
+./venv/bin/neozen
+
+# Windows
+venv\Scripts\activate.bat
+neozen
+```
+
+### After Manual Installation
+
+```bash
+# If virtual environment is activated:
+neozen
+
+# Or run directly:
+python main.py
+```
+
+### Using the Application
+
+1. Enter a target (IP address, hostname, or network range)
+2. Select a scan profile or customize Nmap arguments
+3. Click "Scan" to start
+4. View results in real-time in the Raw Output tab
+5. Explore parsed results in the Parsed Results tab
+6. Save results via File > Save Scan Results
+
+**Note:** Some scan types require administrator/root privileges. NeoZen will warn you in the status bar when privileged scans are selected.
+
+## Development
+
+### Install with Development Dependencies
+
+```bash
+# Using the installation script with dev tools
+./install.sh
+source venv/bin/activate
+pip install -e ".[dev]"
+
+# Or using make
+make dev
+```
+
+### Running Tests
+
+```bash
+# Activate virtual environment first
+source venv/bin/activate
+
+# Run tests
+pytest tests/
+
+# Or using make
+make test
+```
+
+### Code Quality
+
+```bash
+# Format code
+make format
+
+# Run linting
+make lint
+```
 
 ## License
 
