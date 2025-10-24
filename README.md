@@ -10,6 +10,7 @@ NeoZen is a modern, cross-platform graphical user interface (GUI) for the powerf
 - 🔧 Visual Custom Scan Builder with intelligent option compatibility
 - 📊 Real-time scan results with comprehensive host details
 - 💾 Standalone executables - no Python installation required
+- 🐳 Minimal Docker container - isolated and portable deployment
 - 🔍 Default OS and service version detection enabled
 - 📝 Host documentation with persistent notes
 - 💻 Cross-platform support (Linux, macOS, Windows)
@@ -76,6 +77,19 @@ NeoZen is a modern, cross-platform graphical user interface (GUI) for the powerf
 * Cross-platform build system (PyInstaller)
 * Automated installation scripts with integrated build process
 * Make targets for easy building
+
+#### **Containerization (Phase 8)** ✨
+* **Minimal Docker Container** - Lightweight containerized version
+  * Based on python:3.11-slim for small image size
+  * Includes Nmap and all necessary dependencies
+  * X11 forwarding support for GUI
+  * Network host mode for full Nmap functionality
+  * Persistent volumes for scan results and configuration
+* **Easy Deployment** - Simple build and run scripts
+  * docker-build.sh for building the container
+  * docker-run.sh for running with X11 forwarding
+  * docker-compose.yml for advanced orchestration
+* **Isolated Environment** - Run NeoZen without installing Python or dependencies on host
 
 ### 🚧 Planned Features
 
@@ -280,6 +294,77 @@ Then you can run `neozen` from anywhere!
 **Windows:**
 
 Add the project directory to your PATH environment variable, then you can run `neozen` from any command prompt.
+
+## Running in Docker Container
+
+NeoZen can run in a minimal Docker container, providing an isolated environment without installing Python or dependencies on your host system.
+
+### Prerequisites for Docker
+
+* **Docker:** Install Docker Engine from [docker.com](https://docs.docker.com/get-docker/)
+* **X11 Server:** Required for GUI display (pre-installed on Linux, XQuartz for macOS, VcXsrv/Xming for Windows)
+
+### Quick Start with Docker
+
+**Build the container:**
+```bash
+./docker-build.sh
+```
+
+**Run the container:**
+```bash
+./docker-run.sh
+```
+
+### Using Docker Compose
+
+For more advanced setups with persistent volumes:
+
+```bash
+# Start NeoZen
+docker-compose up
+
+# Run in background
+docker-compose up -d
+
+# Stop the container
+docker-compose down
+```
+
+### Manual Docker Commands
+
+**Build:**
+```bash
+docker build -t neozen:latest .
+```
+
+**Run (Linux/macOS):**
+```bash
+# Allow X11 forwarding
+xhost +local:docker
+
+# Run the container
+docker run -it --rm \
+    --name neozen \
+    --network host \
+    --cap-add=NET_ADMIN \
+    --cap-add=NET_RAW \
+    -e DISPLAY=${DISPLAY} \
+    -v /tmp/.X11-unix:/tmp/.X11-unix:rw \
+    -v ${HOME}/.Xauthority:/home/neozen/.Xauthority:ro \
+    neozen:latest
+
+# Cleanup
+xhost -local:docker
+```
+
+**Features of Docker Deployment:**
+- ✅ Minimal image size (python:3.11-slim base)
+- ✅ X11 forwarding for GUI
+- ✅ Network host mode for full Nmap capabilities
+- ✅ Persistent volumes for scan results
+- ✅ Non-root user execution for security
+- ✅ Health checks included
 
 ## Development
 

@@ -1,0 +1,66 @@
+version: '3.8'
+
+services:
+  neozen:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: neozen:latest
+    container_name: neozen
+    hostname: neozen
+
+    # Network mode for Nmap to function properly
+    network_mode: host
+
+    # Privileged mode for raw socket access (required for some Nmap scans)
+    # Only enable if you need SYN scans, OS detection, etc.
+    privileged: false
+
+    # Capabilities for Nmap without full privileged mode
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+
+    # X11 forwarding for GUI
+    environment:
+      - DISPLAY=${DISPLAY:-:0}
+      - QT_X11_NO_MITSHM=1
+      - XDG_RUNTIME_DIR=/tmp/runtime-neozen
+
+    volumes:
+      # X11 socket for GUI display
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      # Share X11 authentication
+      - ${HOME}/.Xauthority:/home/neozen/.Xauthority:ro
+      # Persist scan results and profiles
+      - neozen-config:/home/neozen/.config/NeoZen
+      - neozen-scans:/home/neozen/scans
+      # Optional: Mount a directory for easy access to scan results
+      - ./scans:/app/scans
+
+    # Security options
+    security_opt:
+      - seccomp:unconfined
+
+    # Resource limits (optional)
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: '2'
+    #       memory: 2G
+    #     reservations:
+    #       cpus: '1'
+    #       memory: 512M
+
+    # Restart policy
+    restart: unless-stopped
+
+    # Stdin and TTY for interactive use
+    stdin_open: true
+    tty: true
+
+volumes:
+  neozen-config:
+    driver: local
+  neozen-scans:
+    driver: local
