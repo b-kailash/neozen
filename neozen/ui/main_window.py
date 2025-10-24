@@ -72,6 +72,7 @@ class MainWindow(QMainWindow):
         self.last_scan_xml_path = None # Path to temp XML file from the last completed scan
         self.current_scan_data = {} # Stores the fully parsed data from the last scan/loaded file
         self._current_status_message = "Ready" # Base message for the status bar
+        self.results_saved = False # Track if scan results have been saved
 
         # --- Window Setup ---
         self.setWindowTitle("NeoZen - Modern Nmap GUI")
@@ -96,12 +97,19 @@ class MainWindow(QMainWindow):
         self.open_action.setStatusTip("Open saved Nmap XML scan results")
         self.open_action.triggered.connect(self.open_scan_results)
 
-        # File -> Save
-        self.save_action = QAction("&Save Scan Results...", self)
+        # File -> Save (XML)
+        self.save_action = QAction("&Save Scan Results (XML)...", self)
         self.save_action.setShortcut("Ctrl+S")
-        self.save_action.setStatusTip("Save results of the last completed scan")
+        self.save_action.setStatusTip("Save XML results of the last completed scan")
         self.save_action.setEnabled(False) # Initially disabled
         self.save_action.triggered.connect(self.save_scan_results)
+
+        # File -> Save Raw Output
+        self.save_raw_action = QAction("Save &Raw Output...", self)
+        self.save_raw_action.setShortcut("Ctrl+Shift+S")
+        self.save_raw_action.setStatusTip("Save raw text output from the scan")
+        self.save_raw_action.setEnabled(False) # Initially disabled
+        self.save_raw_action.triggered.connect(self.save_raw_output)
 
         # File -> Exit
         self.exit_action = QAction("E&xit", self)
@@ -123,6 +131,7 @@ class MainWindow(QMainWindow):
         file_menu = menu_bar.addMenu("&File")
         file_menu.addAction(self.open_action)
         file_menu.addAction(self.save_action)
+        file_menu.addAction(self.save_raw_action)
         file_menu.addSeparator()
         file_menu.addAction(self.exit_action)
 
@@ -805,13 +814,16 @@ class MainWindow(QMainWindow):
         # Delete button enabled only when not scanning AND a non-custom profile is selected
         self.delete_profile_button.setEnabled(not scanning and self.profile_combo.currentIndex() > 0)
         # File menu actions
-        # Save enabled only when not scanning AND results from last scan exist
+        # Save XML enabled only when not scanning AND results from last scan exist
         self.save_action.setEnabled(not scanning and bool(self.last_scan_xml_path and os.path.exists(self.last_scan_xml_path)))
+        # Save raw output enabled when not scanning AND output area has content
+        self.save_raw_action.setEnabled(not scanning and bool(self.output_area.toPlainText().strip()))
         self.open_action.setEnabled(not scanning) # Allow opening when idle
 
-        # Clear the temporary file path when starting a new scan
+        # Clear the temporary file path and reset saved flag when starting a new scan
         if scanning:
              self.last_scan_xml_path = None
+             self.results_saved = False
 
 
     def _reset_ui_after_scan(self, status_message):
@@ -972,7 +984,7 @@ class MainWindow(QMainWindow):
         suggested_filename = "nmap_scan_results.xml"
         # Open "Save As" dialog
         filename, _ = QFileDialog.getSaveFileName(
-            self, "Save Nmap Scan Results", suggested_filename,
+            self, "Save Nmap Scan Results (XML)", suggested_filename,
             "Nmap XML Files (*.xml);;All Files (*)"
         )
 
@@ -981,16 +993,60 @@ class MainWindow(QMainWindow):
             try:
                 # Copy the temporary file to the desired location
                 shutil.copyfile(self.last_scan_xml_path, filename)
-                self._current_status_message = f"Scan results saved to {filename}"
+                self._current_status_message = f"Scan results (XML) saved to {filename}"
                 self._check_and_warn_privileged_scan()
-                # Optional: Disable save action after successful save?
-                # self.save_action.setEnabled(False)
-                # self.last_scan_xml_path = None # Clear path after saving? Or allow multiple saves?
+                self.results_saved = True  # Mark results as saved
                 return True # Indicate success
             except Exception as e:
                 # Handle errors during file copy
                 QMessageBox.critical(self, "Save Error", f"Could not save results to {filename}:\n{e}")
                 self._current_status_message = f"Error saving results: {e}"
+                self._check_and_warn_privileged_scan()
+                return False # Indicate failure
+        else:
+            # User cancelled the save dialog
+            self._current_status_message = "Save cancelled."
+            self._check_and_warn_privileged_scan()
+            return False # Indicate cancellation
+
+    def save_raw_output(self):
+        """
+        Prompts the user for a filename and saves the raw text output
+        from the output area to a text file.
+
+        Returns:
+            bool: True on success, False on failure or cancellation.
+        """
+        # Get the raw output text
+        raw_output = self.output_area.toPlainText()
+
+        # Check if there's any output to save
+        if not raw_output.strip():
+            QMessageBox.warning(self, "No Output", "No raw output available to save. Please run a scan first.")
+            return False
+
+        # Suggest a default filename
+        suggested_filename = "nmap_raw_output.txt"
+        # Open "Save As" dialog
+        filename, _ = QFileDialog.getSaveFileName(
+            self, "Save Raw Output", suggested_filename,
+            "Text Files (*.txt);;All Files (*)"
+        )
+
+        # Proceed only if a filename was provided (user didn't cancel)
+        if filename:
+            try:
+                # Write the raw output to the file
+                with open(filename, 'w', encoding='utf-8') as f:
+                    f.write(raw_output)
+                self._current_status_message = f"Raw output saved to {filename}"
+                self._check_and_warn_privileged_scan()
+                self.results_saved = True  # Mark results as saved
+                return True # Indicate success
+            except Exception as e:
+                # Handle errors during file writing
+                QMessageBox.critical(self, "Save Error", f"Could not save raw output to {filename}:\n{e}")
+                self._current_status_message = f"Error saving raw output: {e}"
                 self._check_and_warn_privileged_scan()
                 return False # Indicate failure
         else:
@@ -1033,15 +1089,15 @@ class MainWindow(QMainWindow):
                 return # Stop processing the close event
 
         # 2. If not running (or just stopped), check for unsaved results
-        # Check if last_scan_xml_path exists and points to a real file
-        if should_close and self.last_scan_xml_path and os.path.exists(self.last_scan_xml_path):
+        # Check if last_scan_xml_path exists, points to a real file, AND results haven't been saved yet
+        if should_close and self.last_scan_xml_path and os.path.exists(self.last_scan_xml_path) and not self.results_saved:
             # Create a custom message box for Save/Don't Save/Cancel
             msg_box = QMessageBox(self)
             msg_box.setWindowTitle("Unsaved Scan Results")
             msg_box.setText("The results of the last scan have not been saved.")
             msg_box.setInformativeText("Do you want to save the results before exiting?")
             # Add buttons with specific roles
-            save_button = msg_box.addButton("&Save", QMessageBox.ButtonRole.AcceptRole)
+            save_button = msg_box.addButton("&Save XML", QMessageBox.ButtonRole.AcceptRole)
             discard_button = msg_box.addButton("&Don't Save", QMessageBox.ButtonRole.DestructiveRole)
             cancel_button = msg_box.addButton("Cancel", QMessageBox.ButtonRole.RejectRole)
             msg_box.setDefaultButton(save_button) # Make Save the default
