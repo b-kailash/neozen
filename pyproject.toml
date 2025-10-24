@@ -45,6 +45,12 @@ dev = [
 build = [
     "pyinstaller>=5.0.0",
 ]
+web = [
+    "flask>=2.3.0",
+    "flask-socketio>=5.3.0",
+    "flask-cors>=4.0.0",
+    "python-socketio>=5.9.0",
+]
 
 [project.scripts]
 neozen = "neozen.__main__:main"

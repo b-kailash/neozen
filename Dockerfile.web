@@ -1,0 +1,34 @@
+# NeoZen Web Interface Docker Image
+# Minimal container for browser-based Nmap GUI
+
+FROM python:3.11-slim
+
+LABEL maintainer="NeoZen Project"
+LABEL description="Modern Nmap Web GUI"
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    nmap \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user
+RUN useradd -m -u 1000 neozen
+
+# Set working directory
+WORKDIR /app
+
+# Copy application files
+COPY --chown=neozen:neozen . .
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -e ".[web]"
+
+# Switch to non-root user
+USER neozen
+
+# Expose web server port
+EXPOSE 8080
+
+# Run web server
+CMD ["python", "-m", "neozen.web.app"]

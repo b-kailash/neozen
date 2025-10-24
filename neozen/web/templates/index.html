@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NeoZen - Modern Nmap GUI (Web)</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header>
+            <h1>🔍 NeoZen</h1>
+            <p class="subtitle">Modern Nmap GUI - Web Interface</p>
+        </header>
+
+        <!-- Scan Configuration -->
+        <section class="config-section">
+            <h2>Scan Configuration</h2>
+
+            <div class="form-group">
+                <label for="target">Target:</label>
+                <input type="text" id="target" placeholder="Enter IP address, hostname, or network range" />
+            </div>
+
+            <div class="form-group">
+                <label for="profile">Profile:</label>
+                <select id="profile">
+                    <option value="">Custom Scan</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="arguments">Nmap Arguments:</label>
+                <input type="text" id="arguments" placeholder="e.g., -sV -O -T4" />
+            </div>
+
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="os-detection" checked />
+                    OS Detection (-O)
+                </label>
+                <label>
+                    <input type="checkbox" id="service-detection" checked />
+                    Service Detection (-sV)
+                </label>
+            </div>
+
+            <div class="button-group">
+                <button id="scan-btn" class="btn btn-primary">Start Scan</button>
+                <button id="stop-btn" class="btn btn-danger" disabled>Stop Scan</button>
+                <button id="save-profile-btn" class="btn btn-secondary">Save Profile</button>
+            </div>
+
+            <div id="status" class="status-bar">Ready</div>
+        </section>
+
+        <!-- Results Tabs -->
+        <section class="results-section">
+            <div class="tabs">
+                <button class="tab-btn active" data-tab="output">Raw Output</button>
+                <button class="tab-btn" data-tab="results">Parsed Results</button>
+            </div>
+
+            <!-- Raw Output Tab -->
+            <div id="output-tab" class="tab-content active">
+                <div id="raw-output" class="output-box"></div>
+            </div>
+
+            <!-- Parsed Results Tab -->
+            <div id="results-tab" class="tab-content">
+                <div id="results-container">
+                    <table id="results-table">
+                        <thead>
+                            <tr>
+                                <th>Host</th>
+                                <th>Protocol</th>
+                                <th>Port</th>
+                                <th>State</th>
+                                <th>Service</th>
+                                <th>Product</th>
+                                <th>Version</th>
+                            </tr>
+                        </thead>
+                        <tbody id="results-body">
+                            <tr>
+                                <td colspan="7" class="no-data">No scan results yet</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer>
+            <p>NeoZen - Modern Nmap GUI | <span id="connection-status">●</span> <span id="connection-text">Connecting...</span></p>
+        </footer>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>

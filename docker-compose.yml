@@ -1,6 +1,7 @@
 version: '3.8'
 
 services:
+  # Desktop GUI version (requires X11 forwarding)
   neozen:
     build:
       context: .
@@ -8,6 +9,8 @@ services:
     image: neozen:latest
     container_name: neozen
     hostname: neozen
+    profiles:
+      - desktop
 
     # Network mode for Nmap to function properly
     network_mode: host
@@ -59,8 +62,53 @@ services:
     stdin_open: true
     tty: true
 
+  # Web Dashboard version (browser-based, no X11 required)
+  neozen-web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    image: neozen-web:latest
+    container_name: neozen-web
+    hostname: neozen-web
+    profiles:
+      - web
+
+    # Network mode for Nmap to function properly
+    network_mode: host
+
+    # Capabilities for Nmap without full privileged mode
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+
+    # Port mapping (only needed if not using host network)
+    # ports:
+    #   - "8080:8080"
+
+    volumes:
+      # Persist scan results and profiles
+      - neozen-web-config:/home/neozen/.config/NeoZen
+      - neozen-web-scans:/home/neozen/scans
+      # Optional: Mount a directory for easy access to scan results
+      - ./scan_results:/app/scan_results
+
+    # Restart policy
+    restart: unless-stopped
+
+    # Health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
 volumes:
   neozen-config:
     driver: local
   neozen-scans:
+    driver: local
+  neozen-web-config:
+    driver: local
+  neozen-web-scans:
     driver: local

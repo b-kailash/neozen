@@ -3,14 +3,15 @@
 ![NeoZen Placeholder Logo](https://placehold.co/600x150/7e22ce/white?text=NeoZen)
 *(Replace with an actual logo later)*
 
-NeoZen is a modern, cross-platform graphical user interface (GUI) for the powerful Nmap network scanner. Built using Python 3 and the PyQt6 framework, it provides a feature-rich, user-friendly alternative to the classic Zenmap.
+NeoZen is a modern, cross-platform graphical user interface (GUI) for the powerful Nmap network scanner. Built with Python 3, it offers both a rich desktop application (PyQt6) and a browser-based web dashboard (Flask), providing a feature-rich, user-friendly alternative to the classic Zenmap.
 
 **Key Highlights:**
 - 🎨 Modern, intuitive interface with polished design
+- 🌐 Dual interface support - Desktop GUI (PyQt6) and Web Dashboard (Browser-based)
 - 🔧 Visual Custom Scan Builder with intelligent option compatibility
 - 📊 Real-time scan results with comprehensive host details
 - 💾 Standalone executables - no Python installation required
-- 🐳 Minimal Docker container - isolated and portable deployment
+- 🐳 Minimal Docker containers - isolated and portable deployment
 - 🔍 Default OS and service version detection enabled
 - 📝 Host documentation with persistent notes
 - 💻 Cross-platform support (Linux, macOS, Windows)
@@ -91,6 +92,26 @@ NeoZen is a modern, cross-platform graphical user interface (GUI) for the powerf
   * docker-compose.yml for advanced orchestration
 * **Isolated Environment** - Run NeoZen without installing Python or dependencies on host
 
+#### **Web Dashboard (Phase 9)** ✨
+* **Browser-Based Interface** - Access NeoZen from any modern web browser
+  * Flask web server with REST API
+  * Real-time updates via WebSocket (Socket.IO)
+  * Modern, responsive HTML5/CSS3/JavaScript UI
+  * No X11 forwarding required
+* **Full Feature Parity** - All core features available via web interface
+  * Scan configuration (target, profiles, arguments)
+  * OS Detection and Service Version Detection checkboxes
+  * Real-time scan output streaming
+  * Parsed results table with comprehensive host details
+  * Profile management (save/load custom configurations)
+* **Dual Interface Support** - Choose the interface that fits your needs
+  * Desktop GUI (PyQt6) for local use with rich UI
+  * Web Dashboard for remote access and containerized deployments
+* **Simple Deployment** - Dedicated web container
+  * Dockerfile.web for minimal web-only deployment
+  * docker-build-web.sh and docker-run-web.sh scripts
+  * Access via http://localhost:8080
+
 ### 🚧 Planned Features
 
 #### **Phase 6: Topology View**
@@ -109,8 +130,8 @@ NeoZen is a modern, cross-platform graphical user interface (GUI) for the powerf
 
 ## Prerequisites
 
-* **Python 3:** Version 3.7 or higher recommended.
 * **Nmap:** Must be installed separately and available in your system's PATH. Download from [nmap.org](https://nmap.org).
+* **Python 3:** Version 3.7 or higher (only required for building from source; standalone executables and Docker containers include everything needed).
 
 ## Quick Installation
 
@@ -318,17 +339,32 @@ NeoZen can run in a minimal Docker container, providing an isolated environment 
 
 ### Using Docker Compose
 
-For more advanced setups with persistent volumes:
+Docker Compose supports both desktop GUI and web versions via profiles:
 
+**Desktop GUI version (requires X11 forwarding):**
 ```bash
-# Start NeoZen
-docker-compose up
+# Start NeoZen desktop GUI
+docker-compose --profile desktop up
 
 # Run in background
-docker-compose up -d
+docker-compose --profile desktop up -d
 
 # Stop the container
-docker-compose down
+docker-compose --profile desktop down
+```
+
+**Web Dashboard version (browser-based):**
+```bash
+# Start NeoZen web dashboard
+docker-compose --profile web up
+
+# Run in background
+docker-compose --profile web up -d
+
+# Access at http://localhost:8080
+
+# Stop the container
+docker-compose --profile web down
 ```
 
 ### Manual Docker Commands
@@ -365,6 +401,85 @@ xhost -local:docker
 - ✅ Persistent volumes for scan results
 - ✅ Non-root user execution for security
 - ✅ Health checks included
+
+## Running the Web Dashboard
+
+NeoZen includes a browser-based web interface, perfect for remote access and containerized deployments without X11 forwarding complexity.
+
+### Quick Start with Web Interface
+
+**Build the web container:**
+```bash
+./docker-build-web.sh
+```
+
+**Run the web server:**
+```bash
+./docker-run-web.sh
+```
+
+**Access the interface:**
+
+Open your browser and navigate to:
+```
+http://localhost:8080
+```
+
+### Running Web Interface Locally (Without Docker)
+
+You can also run the web interface directly on your host:
+
+```bash
+# Activate virtual environment
+source venv/bin/activate  # Linux/macOS
+# or
+.\venv\Scripts\activate   # Windows
+
+# Install web dependencies
+pip install -e ".[web]"
+
+# Start the web server
+python -m neozen.web.app
+```
+
+Then access at `http://localhost:8080`
+
+### Using the Web Interface
+
+1. **Connection Status** - Check the connection indicator in the footer (green = connected)
+2. **Configure Scan:**
+   - Enter target (IP, hostname, or network range)
+   - Select a saved profile or use Custom Scan
+   - Enter custom Nmap arguments if needed
+   - Enable/disable OS Detection and Service Detection checkboxes
+3. **Start Scan** - Click "Start Scan" button
+4. **View Results** - Switch between tabs:
+   - **Raw Output** - Live console output from Nmap
+   - **Parsed Results** - Structured table with host/port details
+5. **Manage Profiles** - Save configurations for reuse
+
+**Features of Web Dashboard:**
+- ✅ Real-time scan output streaming via WebSockets
+- ✅ Full scan control (start, stop, configure)
+- ✅ Profile management (save, load, delete)
+- ✅ Modern responsive design
+- ✅ No desktop dependencies or X11 required
+- ✅ Perfect for remote access and headless servers
+- ✅ Access from any device with a web browser
+
+### Web vs Desktop Interface
+
+**Choose Desktop GUI (PyQt6) when:**
+- Running locally on your workstation
+- You prefer native desktop applications
+- You want the richest UI experience with all PyQt6 features
+
+**Choose Web Dashboard when:**
+- Running in Docker containers
+- Accessing NeoZen remotely
+- Working on headless/remote servers
+- You want browser-based access from any device
+- You want to avoid X11 forwarding setup
 
 ## Development
 
