@@ -4,6 +4,7 @@ Main entry point for NeoZen when run as a module or installed package.
 import sys
 import shutil
 from PyQt6.QtWidgets import QApplication, QMessageBox
+from PyQt6.QtGui import QIcon
 
 
 def check_nmap_installed():
@@ -38,6 +39,14 @@ def main():
     app = QApplication(sys.argv)
     app.setApplicationName("NeoZen")
     app.setOrganizationName("NeoZen")
+
+    # Set application icon
+    from neozen.resources import get_icon_path
+    app.setWindowIcon(QIcon(get_icon_path()))
+
+    # Apply modern styling
+    from neozen.ui.styles import apply_modern_style
+    apply_modern_style(app)
 
     # Check if Nmap is installed before proceeding
     if not check_nmap_installed():

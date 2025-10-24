@@ -13,10 +13,11 @@ from PyQt6.QtWidgets import (
     QDialog, QDialogButtonBox, QFormLayout, QCheckBox, QFileDialog,
     QAbstractItemView, QSplitter # Added QSplitter
 )
-from PyQt6.QtGui import QAction, QFont # Added QFont
+from PyQt6.QtGui import QAction, QFont, QIcon # Added QFont and QIcon
 from PyQt6.QtCore import Qt, pyqtSignal, QThread
 from neozen.core.scanner import Scanner
 from neozen.core.profiles import ProfileManager
+from neozen.resources import get_icon_path
 
 # --- Profile Save Dialog ---
 class SaveProfileDialog(QDialog):
@@ -78,6 +79,7 @@ class MainWindow(QMainWindow):
 
         # --- Window Setup ---
         self.setWindowTitle("NeoZen - Modern Nmap GUI")
+        self.setWindowIcon(QIcon(get_icon_path()))
         self.setGeometry(100, 100, 950, 900) # Set initial position and size
 
         # --- Build UI Components ---
@@ -224,9 +226,12 @@ class MainWindow(QMainWindow):
         button_layout = QHBoxLayout()
         self.scan_button = QPushButton("Scan")
         self.stop_button = QPushButton("Stop Scan")
+        self.stop_button.setObjectName("stop_button")  # For custom styling
         self.stop_button.setEnabled(False) # Disabled initially
         self.save_profile_button = QPushButton("Save Profile")
+        self.save_profile_button.setObjectName("save_profile_button")  # For custom styling
         self.delete_profile_button = QPushButton("Delete Profile")
+        self.delete_profile_button.setObjectName("delete_profile_button")  # For custom styling
         self.delete_profile_button.setEnabled(False) # Disabled initially
         button_layout.addWidget(self.scan_button)
         button_layout.addWidget(self.stop_button)

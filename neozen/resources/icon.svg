@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="256" height="256" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle with gradient -->
+  <defs>
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#7e22ce;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#a855f7;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="radarGradient" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%" style="stop-color:#ffffff;stop-opacity:0.9" />
+      <stop offset="100%" style="stop-color:#ffffff;stop-opacity:0.3" />
+    </linearGradient>
+  </defs>
+
+  <!-- Main background -->
+  <circle cx="128" cy="128" r="120" fill="url(#bgGradient)" />
+
+  <!-- Radar circles -->
+  <circle cx="128" cy="128" r="90" fill="none" stroke="white" stroke-width="2" opacity="0.3"/>
+  <circle cx="128" cy="128" r="65" fill="none" stroke="white" stroke-width="2" opacity="0.4"/>
+  <circle cx="128" cy="128" r="40" fill="none" stroke="white" stroke-width="2" opacity="0.5"/>
+
+  <!-- Center dot -->
+  <circle cx="128" cy="128" r="8" fill="white"/>
+
+  <!-- Radar sweep line (stylized) -->
+  <line x1="128" y1="128" x2="128" y2="38" stroke="white" stroke-width="3" opacity="0.7">
+    <animateTransform
+      attributeName="transform"
+      type="rotate"
+      from="0 128 128"
+      to="360 128 128"
+      dur="4s"
+      repeatCount="indefinite"/>
+  </line>
+
+  <!-- Scan points (nodes) -->
+  <circle cx="165" cy="85" r="5" fill="#22c55e"/>
+  <circle cx="90" cy="100" r="5" fill="#22c55e"/>
+  <circle cx="150" cy="150" r="5" fill="#22c55e"/>
+  <circle cx="105" cy="165" r="5" fill="#f59e0b"/>
+  <circle cx="175" cy="125" r="5" fill="#ef4444"/>
+
+  <!-- Network connections -->
+  <line x1="128" y1="128" x2="165" y2="85" stroke="white" stroke-width="1.5" opacity="0.4"/>
+  <line x1="128" y1="128" x2="90" y2="100" stroke="white" stroke-width="1.5" opacity="0.4"/>
+  <line x1="128" y1="128" x2="150" y2="150" stroke="white" stroke-width="1.5" opacity="0.4"/>
+  <line x1="128" y1="128" x2="105" y2="165" stroke="white" stroke-width="1.5" opacity="0.4"/>
+  <line x1="128" y1="128" x2="175" y2="125" stroke="white" stroke-width="1.5" opacity="0.4"/>
+
+  <!-- Letter N in the center (stylized) -->
+  <text x="128" y="145" font-family="Arial, sans-serif" font-size="60" font-weight="bold"
+        fill="white" text-anchor="middle" opacity="0.9">N</text>
+</svg>

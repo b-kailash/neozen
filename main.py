@@ -1,8 +1,11 @@
 import sys
 import shutil
 from PyQt6.QtWidgets import QApplication, QMessageBox
+from PyQt6.QtGui import QIcon
 # Import the main window class from our UI package
 from neozen.ui.main_window import MainWindow
+from neozen.ui.styles import apply_modern_style
+from neozen.resources import get_icon_path
 
 
 def check_nmap_installed():
@@ -39,6 +42,12 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     app.setApplicationName("NeoZen")
     app.setOrganizationName("NeoZen")
+
+    # Set application icon
+    app.setWindowIcon(QIcon(get_icon_path()))
+
+    # Apply modern styling
+    apply_modern_style(app)
 
     # Check if Nmap is installed before proceeding
     if not check_nmap_installed():
