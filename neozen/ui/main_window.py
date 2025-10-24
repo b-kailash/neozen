@@ -73,6 +73,8 @@ class MainWindow(QMainWindow):
         self.current_scan_data = {} # Stores the fully parsed data from the last scan/loaded file
         self._current_status_message = "Ready" # Base message for the status bar
         self.results_saved = False # Track if scan results have been saved
+        self.host_notes = {} # Store user notes for each host IP {host_ip: note_text}
+        self.current_selected_host = None # Track currently selected host for notes
 
         # --- Window Setup ---
         self.setWindowTitle("NeoZen - Modern Nmap GUI")
@@ -284,19 +286,46 @@ class MainWindow(QMainWindow):
         # Add the tab widget to the top part of the splitter
         results_splitter.addWidget(self.tab_widget)
 
-        # --- Bottom part of splitter: Host Details Area ---
+        # --- Bottom part of splitter: Host Details Area with Notes ---
         details_container = QWidget() # Use container for label + text area
         details_layout = QVBoxLayout(details_container)
         details_layout.setContentsMargins(0, 5, 0, 0) # Adjust margins
+
+        # Create a vertical splitter for Host Details and Notes
+        details_splitter = QSplitter(Qt.Orientation.Vertical)
+
+        # Host Details section (top)
+        host_details_widget = QWidget()
+        host_details_layout = QVBoxLayout(host_details_widget)
+        host_details_layout.setContentsMargins(0, 0, 0, 0)
         details_label = QLabel("Host Details:")
         self.host_details_area = QTextEdit()
         self.host_details_area.setReadOnly(True)
         self.host_details_area.setFont(monospace_font) # Use consistent monospace font
         self.host_details_area.setLineWrapMode(QTextEdit.LineWrapMode.NoWrap) # Disable line wrapping
-        details_layout.addWidget(details_label)
-        details_layout.addWidget(self.host_details_area)
+        host_details_layout.addWidget(details_label)
+        host_details_layout.addWidget(self.host_details_area)
 
-        # Add the details container to the bottom part of the splitter
+        # Notes section (bottom)
+        notes_widget = QWidget()
+        notes_layout = QVBoxLayout(notes_widget)
+        notes_layout.setContentsMargins(0, 0, 0, 0)
+        notes_label = QLabel("Notes for Selected Host:")
+        self.notes_area = QTextEdit()
+        self.notes_area.setPlaceholderText("Add your notes here... (automatically saved)")
+        self.notes_area.setMaximumHeight(120)  # Limit height so details get more space
+        notes_layout.addWidget(notes_label)
+        notes_layout.addWidget(self.notes_area)
+
+        # Add both sections to the details splitter
+        details_splitter.addWidget(host_details_widget)
+        details_splitter.addWidget(notes_widget)
+        details_splitter.setSizes([300, 100])  # Give more space to details
+
+        # Add the details splitter to the main layout
+        details_layout.addWidget(details_splitter)
+
+        # Add the details container to the bottom part of the main results splitter
         results_splitter.addWidget(details_container)
 
         # --- Configure Splitter Sizes ---
@@ -332,6 +361,8 @@ class MainWindow(QMainWindow):
         self.delete_profile_button.clicked.connect(self.delete_selected_profile)
         # Results table selection -> Host Details update
         self.results_table.itemSelectionChanged.connect(self.display_host_details)
+        # Notes area -> Save notes when changed
+        self.notes_area.textChanged.connect(self.save_current_host_notes)
         # Update command display dynamically
         self.target_input.textChanged.connect(self._update_command_display)
         self.custom_args_input.textChanged.connect(self._update_command_display)
@@ -598,7 +629,10 @@ class MainWindow(QMainWindow):
         # Prepare for new scan
         self._cleanup_last_scan_file() # Remove temp file from previous scan
         self.current_scan_data = {} # Clear stored detailed results
+        self.host_notes = {} # Clear notes from previous scan
+        self.current_selected_host = None # Clear selected host
         self.host_details_area.clear() # Clear details view
+        self.notes_area.clear() # Clear notes area
         nmap_args = self.get_nmap_arguments() # Get arguments from UI
         self.output_area.clear() # Clear raw output
         self.results_table.setRowCount(0) # Clear results table
@@ -800,6 +834,72 @@ class MainWindow(QMainWindow):
             # Handle case where data for the selected host isn't found
             self.host_details_area.setText(f"No detailed data available for selected host.")
 
+        # Load notes for the selected host
+        self.current_selected_host = host_ip
+        if host_ip and host_ip in self.host_notes:
+            # Temporarily disconnect signal to avoid triggering save while loading
+            self.notes_area.textChanged.disconnect(self.save_current_host_notes)
+            self.notes_area.setPlainText(self.host_notes[host_ip])
+            self.notes_area.textChanged.connect(self.save_current_host_notes)
+        else:
+            # Clear notes area if no notes exist for this host
+            self.notes_area.textChanged.disconnect(self.save_current_host_notes)
+            self.notes_area.clear()
+            self.notes_area.textChanged.connect(self.save_current_host_notes)
+
+    def save_current_host_notes(self):
+        """
+        Saves the current notes text to the host_notes dictionary for the selected host.
+        Called automatically when notes text changes.
+        """
+        if self.current_selected_host:
+            notes_text = self.notes_area.toPlainText().strip()
+            if notes_text:
+                self.host_notes[self.current_selected_host] = notes_text
+            else:
+                # Remove empty notes from dictionary
+                if self.current_selected_host in self.host_notes:
+                    del self.host_notes[self.current_selected_host]
+
+    def save_notes_to_file(self, base_filename):
+        """
+        Saves host notes to a JSON file alongside the scan results.
+
+        Args:
+            base_filename (str): Base filename (without extension) for the notes file
+
+        Returns:
+            bool: True if save was successful, False otherwise
+        """
+        if not self.host_notes:
+            return True  # No notes to save, but not an error
+
+        notes_filename = base_filename + "_notes.json"
+        try:
+            with open(notes_filename, 'w', encoding='utf-8') as f:
+                json.dump(self.host_notes, f, indent=2, ensure_ascii=False)
+            return True
+        except Exception as e:
+            print(f"Error saving notes: {e}")
+            return False
+
+    def load_notes_from_file(self, base_filename):
+        """
+        Loads host notes from a JSON file.
+
+        Args:
+            base_filename (str): Base filename (without extension) for the notes file
+        """
+        notes_filename = base_filename + "_notes.json"
+        if os.path.exists(notes_filename):
+            try:
+                with open(notes_filename, 'r', encoding='utf-8') as f:
+                    self.host_notes = json.load(f)
+            except Exception as e:
+                print(f"Error loading notes: {e}")
+                self.host_notes = {}
+        else:
+            self.host_notes = {}
 
     def _set_ui_scan_state(self, scanning: bool):
         """Enables/disables UI elements based on whether a scan is running."""
@@ -953,6 +1053,11 @@ class MainWindow(QMainWindow):
                 self.current_scan_data = parsed_results # Store loaded data
                 self.output_area.setText(f"--- Results loaded from: {filename} ---\n\n(Raw output not available for loaded files)")
                 self.display_parsed_results_table(parsed_results) # Update table
+
+                # Load notes if they exist
+                base_filename = os.path.splitext(filename)[0]  # Remove .xml extension
+                self.load_notes_from_file(base_filename)
+
                 self._current_status_message = f"Successfully loaded results from {filename}"
                 self._check_and_warn_privileged_scan()
                 # Cannot save a loaded file via the temp file mechanism
@@ -993,6 +1098,12 @@ class MainWindow(QMainWindow):
             try:
                 # Copy the temporary file to the desired location
                 shutil.copyfile(self.last_scan_xml_path, filename)
+
+                # Save notes if any exist
+                if self.host_notes:
+                    base_filename = os.path.splitext(filename)[0]  # Remove .xml extension
+                    self.save_notes_to_file(base_filename)
+
                 self._current_status_message = f"Scan results (XML) saved to {filename}"
                 self._check_and_warn_privileged_scan()
                 self.results_saved = True  # Mark results as saved
