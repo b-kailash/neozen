@@ -680,8 +680,8 @@ class MainWindow(QMainWindow):
         parsed_results_layout = QVBoxLayout(self.parsed_results_widget)
         parsed_results_layout.setContentsMargins(0, 5, 0, 0)
         self.results_table = QTableWidget()
-        self.results_table.setColumnCount(7)
-        self.results_table.setHorizontalHeaderLabels(["Host", "Proto", "Port", "State", "Service", "Product", "Version"])
+        self.results_table.setColumnCount(8)
+        self.results_table.setHorizontalHeaderLabels(["Host", "MAC Address", "Proto", "Port", "State", "Service", "Product", "Version"])
         self.results_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers) # Make table read-only
         self.results_table.setAlternatingRowColors(True) # Improve readability
         self.results_table.verticalHeader().setVisible(False) # Hide default row numbers
@@ -690,12 +690,13 @@ class MainWindow(QMainWindow):
         # Configure column resizing behavior
         header = self.results_table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive) # Host (allow resize)
-        header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents) # Proto (fit content)
-        header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents) # Port (fit content)
-        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Interactive) # State (allow resize)
-        header.setSectionResizeMode(4, QHeaderView.ResizeMode.Interactive) # Service (allow resize)
-        header.setSectionResizeMode(5, QHeaderView.ResizeMode.Stretch) # Product (stretch)
-        header.setSectionResizeMode(6, QHeaderView.ResizeMode.Stretch) # Version (stretch)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive) # MAC Address (allow resize)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents) # Proto (fit content)
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents) # Port (fit content)
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.Interactive) # State (allow resize)
+        header.setSectionResizeMode(5, QHeaderView.ResizeMode.Interactive) # Service (allow resize)
+        header.setSectionResizeMode(6, QHeaderView.ResizeMode.Stretch) # Product (stretch)
+        header.setSectionResizeMode(7, QHeaderView.ResizeMode.Stretch) # Version (stretch)
         self.results_table.setSortingEnabled(True) # Allow sorting by column header clicks
         parsed_results_layout.addWidget(self.results_table)
         self.tab_widget.addTab(self.parsed_results_widget, "Parsed Results")
@@ -1195,6 +1196,10 @@ class MainWindow(QMainWindow):
             hostname = host_data.get('hostname', '')
             # Format host display (include IP)
             display_host = f"{hostname} ({host})" if hostname and hostname != host else host
+            # Get MAC address for this host
+            mac_address = host_data.get('mac', '')
+            vendor = host_data.get('vendor', '')
+            mac_display = f"{mac_address} ({vendor})" if mac_address and vendor else mac_address
             protocols = host_data.get('protocols', {})
 
             # If no port/protocol info, but host is up, show a single row for the host
@@ -1205,8 +1210,9 @@ class MainWindow(QMainWindow):
                      # Store the actual IP address in the item's data for later retrieval
                      host_item.setData(Qt.ItemDataRole.UserRole, host)
                      self.results_table.setItem(row_position, 0, host_item) # Host column
-                     self.results_table.setItem(row_position, 3, QTableWidgetItem(host_data.get('state', 'unknown'))) # State column
-                     self.results_table.setItem(row_position, 4, QTableWidgetItem("(No ports found/reported)")) # Service column
+                     self.results_table.setItem(row_position, 1, QTableWidgetItem(mac_display)) # MAC column
+                     self.results_table.setItem(row_position, 4, QTableWidgetItem(host_data.get('state', 'unknown'))) # State column
+                     self.results_table.setItem(row_position, 5, QTableWidgetItem("(No ports found/reported)")) # Service column
                      row_position += 1
                 continue # Skip hosts with no protocols if not 'up'
 
@@ -1217,6 +1223,7 @@ class MainWindow(QMainWindow):
                     # Create table items for each cell
                     host_item = QTableWidgetItem(display_host)
                     host_item.setData(Qt.ItemDataRole.UserRole, host) # Store IP
+                    mac_item = QTableWidgetItem(mac_display)
                     proto_item = QTableWidgetItem(proto)
                     port_item = QTableWidgetItem(str(port)) # Port must be string
                     state_item = QTableWidgetItem(port_data.get('state', ''))
@@ -1225,12 +1232,13 @@ class MainWindow(QMainWindow):
                     version_item = QTableWidgetItem(port_data.get('version', ''))
                     # Set items in the current row
                     self.results_table.setItem(row_position, 0, host_item)
-                    self.results_table.setItem(row_position, 1, proto_item)
-                    self.results_table.setItem(row_position, 2, port_item)
-                    self.results_table.setItem(row_position, 3, state_item)
-                    self.results_table.setItem(row_position, 4, service_item)
-                    self.results_table.setItem(row_position, 5, product_item)
-                    self.results_table.setItem(row_position, 6, version_item)
+                    self.results_table.setItem(row_position, 1, mac_item)
+                    self.results_table.setItem(row_position, 2, proto_item)
+                    self.results_table.setItem(row_position, 3, port_item)
+                    self.results_table.setItem(row_position, 4, state_item)
+                    self.results_table.setItem(row_position, 5, service_item)
+                    self.results_table.setItem(row_position, 6, product_item)
+                    self.results_table.setItem(row_position, 7, version_item)
                     row_position += 1
 
         self.results_table.setSortingEnabled(True) # Re-enable sorting

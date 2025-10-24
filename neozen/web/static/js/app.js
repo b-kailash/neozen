@@ -252,7 +252,7 @@ function displayResults(results) {
     resultsBody.innerHTML = '';
 
     if (!results || Object.keys(results).length === 0) {
-        resultsBody.innerHTML = '<tr><td colspan="7" class="no-data">No results found</td></tr>';
+        resultsBody.innerHTML = '<tr><td colspan="8" class="no-data">No results found</td></tr>';
         return;
     }
 
@@ -260,6 +260,9 @@ function displayResults(results) {
     for (const [host, hostData] of Object.entries(results)) {
         const hostname = hostData.hostname || '';
         const displayHost = hostname && hostname !== host ? `${hostname} (${host})` : host;
+        const macAddress = hostData.mac || '';
+        const vendor = hostData.vendor || '';
+        const macDisplay = macAddress && vendor ? `${macAddress} (${vendor})` : macAddress;
         const protocols = hostData.protocols || {};
 
         if (Object.keys(protocols).length === 0) {
@@ -267,6 +270,7 @@ function displayResults(results) {
             const row = resultsBody.insertRow();
             row.innerHTML = `
                 <td>${displayHost}</td>
+                <td>${macDisplay}</td>
                 <td colspan="6" class="no-data">No open ports found</td>
             `;
             continue;
@@ -278,6 +282,7 @@ function displayResults(results) {
                 const row = resultsBody.insertRow();
                 row.innerHTML = `
                     <td>${displayHost}</td>
+                    <td>${macDisplay}</td>
                     <td>${proto}</td>
                     <td>${port}</td>
                     <td>${portData.state || ''}</td>
