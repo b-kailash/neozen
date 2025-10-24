@@ -89,11 +89,27 @@ format:
 # Build standalone executable
 build:
 	@if [ ! -d "venv" ]; then \
-		echo "Virtual environment not found. Run 'make dev' first."; \
+		echo "Virtual environment not found. Run 'make install' first."; \
 		exit 1; \
 	fi
 	@echo "Installing build dependencies..."
 	./venv/bin/pip install -e ".[build]"
 	@echo "Building executable with PyInstaller..."
-	./venv/bin/pyinstaller --onefile --windowed --name NeoZen main.py
-	@echo "✓ Build complete! Executable is in dist/NeoZen"
+	./venv/bin/pyinstaller --clean --noconfirm neozen.spec
+	@echo "Moving executable to project directory..."
+	@if [ -f dist/neozen ]; then \
+		mv dist/neozen ./neozen-linux || mv dist/neozen ./neozen-macos; \
+	elif [ -f dist/neozen.exe ]; then \
+		mv dist/neozen.exe ./neozen.exe; \
+	fi
+	@echo "Cleaning up build directories..."
+	rm -rf build/ dist/ *.spec~
+	@echo ""
+	@echo "✓ Build complete!"
+	@if [ -f neozen-linux ]; then \
+		echo "  Executable: ./neozen-linux"; \
+	elif [ -f neozen-macos ]; then \
+		echo "  Executable: ./neozen-macos"; \
+	elif [ -f neozen.exe ]; then \
+		echo "  Executable: ./neozen.exe"; \
+	fi

@@ -157,6 +157,76 @@ python main.py
 
 **Note:** Some scan types require administrator/root privileges. NeoZen will warn you in the status bar when privileged scans are selected.
 
+## Building Standalone Executables
+
+You can build standalone executables that don't require Python or a virtual environment to be installed.
+
+### Quick Build
+
+**Linux / macOS:**
+```bash
+./build.sh
+```
+
+The script will create a standalone executable in the project directory:
+- Linux: `neozen-linux`
+- macOS: `neozen-macos`
+
+**Windows:**
+```cmd
+build.bat
+```
+
+Creates `neozen.exe` in the project directory.
+
+### Using Make (Linux/macOS)
+
+```bash
+make build
+```
+
+### Manual Build with PyInstaller
+
+If you prefer manual control:
+
+```bash
+# Activate virtual environment
+source venv/bin/activate  # Linux/macOS
+# or
+venv\Scripts\activate.bat  # Windows
+
+# Install build dependencies
+pip install -e ".[build]"
+
+# Build with PyInstaller
+pyinstaller --clean --noconfirm neozen.spec
+
+# The executable will be in dist/ directory
+# Move it to project root if desired
+```
+
+### Running the Standalone Executable
+
+**Linux / macOS:**
+```bash
+./neozen-linux    # or ./neozen-macos
+```
+
+**Windows:**
+```cmd
+neozen.exe
+```
+
+Or simply double-click the executable in your file explorer.
+
+**Making it globally available (Linux/macOS):**
+```bash
+sudo cp neozen-linux /usr/local/bin/neozen
+sudo chmod +x /usr/local/bin/neozen
+```
+
+Then you can run `neozen` from anywhere!
+
 ## Development
 
 ### Install with Development Dependencies
