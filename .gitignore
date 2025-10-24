@@ -35,8 +35,6 @@ MANIFEST
 
 # Built executables (keep in project directory but ignore in git)
 neozen
-neozen-linux
-neozen-macos
 neozen.exe
 NeoZen.app/
 

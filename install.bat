@@ -80,17 +80,49 @@ if %errorlevel% neq 0 (
 
 echo [OK] NeoZen installed successfully!
 
+REM Build standalone executable
+echo.
+echo [EXTRA] Building standalone executable...
+pip install -e ".[build]" --quiet
+
+if %errorlevel% equ 0 (
+    pyinstaller --clean --noconfirm neozen.spec >nul 2>&1
+
+    REM Move executable to project directory
+    if exist "dist\neozen.exe" (
+        move /Y dist\neozen.exe neozen.exe >nul
+        echo [OK] Standalone executable created: neozen.exe
+
+        REM Clean up build artifacts
+        rmdir /S /Q build >nul 2>&1
+        rmdir /S /Q dist >nul 2>&1
+    ) else (
+        echo [WARNING] Standalone executable build failed, but virtual environment installation succeeded.
+    )
+) else (
+    echo [WARNING] Could not install build dependencies, but virtual environment installation succeeded.
+)
+
 REM Installation complete
 echo.
 echo =========================================
 echo      Installation Complete!
 echo =========================================
 echo.
-echo To start NeoZen, run:
+echo To start NeoZen:
+echo.
+if exist "neozen.exe" (
+    echo Option 1 [Recommended]: Run standalone executable
+    echo   neozen.exe
+    echo.
+    echo   Or double-click neozen.exe in File Explorer
+    echo.
+    echo Option 2: Use virtual environment:
+)
 echo   venv\Scripts\activate.bat
 echo   neozen
 echo.
-echo Or simply double-click:
+echo Or double-click:
 echo   venv\Scripts\neozen.exe
 echo.
 echo To deactivate the virtual environment later, run:

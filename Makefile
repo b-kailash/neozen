@@ -98,7 +98,8 @@ build:
 	./venv/bin/pyinstaller --clean --noconfirm neozen.spec
 	@echo "Moving executable to project directory..."
 	@if [ -f dist/neozen ]; then \
-		mv dist/neozen ./neozen-linux || mv dist/neozen ./neozen-macos; \
+		mv dist/neozen ./neozen; \
+		chmod +x ./neozen; \
 	elif [ -f dist/neozen.exe ]; then \
 		mv dist/neozen.exe ./neozen.exe; \
 	fi
@@ -106,10 +107,8 @@ build:
 	rm -rf build/ dist/ *.spec~
 	@echo ""
 	@echo "✓ Build complete!"
-	@if [ -f neozen-linux ]; then \
-		echo "  Executable: ./neozen-linux"; \
-	elif [ -f neozen-macos ]; then \
-		echo "  Executable: ./neozen-macos"; \
+	@if [ -f neozen ]; then \
+		echo "  Executable: ./neozen"; \
 	elif [ -f neozen.exe ]; then \
 		echo "  Executable: ./neozen.exe"; \
 	fi

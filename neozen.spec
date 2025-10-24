@@ -16,7 +16,7 @@ is_windows = sys.platform.startswith('win')
 is_macos = sys.platform == 'darwin'
 is_linux = sys.platform.startswith('linux')
 
-# Set executable name based on platform
+# Set executable name - simple naming for all platforms
 exe_name = 'neozen.exe' if is_windows else 'neozen'
 
 # Analysis - gather all Python files and dependencies

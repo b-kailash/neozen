@@ -159,57 +159,51 @@ python main.py
 
 ## Building Standalone Executables
 
-You can build standalone executables that don't require Python or a virtual environment to be installed.
+Standalone executables are automatically built during installation and placed in the project directory.
 
-### Quick Build
+### Automatic Build During Installation
+
+When you run the installation scripts (`install.sh` or `install.bat`), they will automatically:
+1. Install NeoZen in a virtual environment
+2. Build a standalone executable in the project directory
+3. Give you both options to run the application
+
+**Linux / macOS:**
+```bash
+./install.sh
+# Creates: ./neozen
+```
+
+**Windows:**
+```cmd
+install.bat
+REM Creates: neozen.exe
+```
+
+### Manual Build Only (Optional)
+
+If you only want to build the executable without installation:
 
 **Linux / macOS:**
 ```bash
 ./build.sh
 ```
 
-The script will create a standalone executable in the project directory:
-- Linux: `neozen-linux`
-- macOS: `neozen-macos`
-
 **Windows:**
 ```cmd
 build.bat
 ```
 
-Creates `neozen.exe` in the project directory.
-
-### Using Make (Linux/macOS)
-
+**Using Make (Linux/macOS):**
 ```bash
 make build
-```
-
-### Manual Build with PyInstaller
-
-If you prefer manual control:
-
-```bash
-# Activate virtual environment
-source venv/bin/activate  # Linux/macOS
-# or
-venv\Scripts\activate.bat  # Windows
-
-# Install build dependencies
-pip install -e ".[build]"
-
-# Build with PyInstaller
-pyinstaller --clean --noconfirm neozen.spec
-
-# The executable will be in dist/ directory
-# Move it to project root if desired
 ```
 
 ### Running the Standalone Executable
 
 **Linux / macOS:**
 ```bash
-./neozen-linux    # or ./neozen-macos
+./neozen
 ```
 
 **Windows:**
@@ -219,13 +213,19 @@ neozen.exe
 
 Or simply double-click the executable in your file explorer.
 
-**Making it globally available (Linux/macOS):**
+### Making it Globally Available
+
+**Linux / macOS:**
 ```bash
-sudo cp neozen-linux /usr/local/bin/neozen
+sudo cp neozen /usr/local/bin/neozen
 sudo chmod +x /usr/local/bin/neozen
 ```
 
 Then you can run `neozen` from anywhere!
+
+**Windows:**
+
+Add the project directory to your PATH environment variable, then you can run `neozen` from any command prompt.
 
 ## Development
 

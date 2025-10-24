@@ -113,17 +113,47 @@ else
     exit 1
 fi
 
+# Build standalone executable
+echo ""
+echo "🔨 Building standalone executable..."
+pip install -e ".[build]" --quiet
+
+if [ $? -eq 0 ]; then
+    pyinstaller --clean --noconfirm neozen.spec 2>&1 | grep -E '(Building|Completed|ERROR)' || true
+
+    # Move executable to project directory
+    if [ -f "dist/neozen" ]; then
+        mv dist/neozen ./neozen
+        chmod +x ./neozen
+        echo -e "${GREEN}✓ Standalone executable created: ./neozen${NC}"
+
+        # Clean up build artifacts
+        rm -rf build/ dist/
+    else
+        echo -e "${YELLOW}⚠️  Standalone executable build failed, but virtual environment installation succeeded.${NC}"
+    fi
+else
+    echo -e "${YELLOW}⚠️  Could not install build dependencies, but virtual environment installation succeeded.${NC}"
+fi
+
 # Installation complete
 echo ""
 echo "╔════════════════════════════════════════╗"
 echo "║     Installation Complete! 🎉          ║"
 echo "╚════════════════════════════════════════╝"
 echo ""
-echo "To start NeoZen, run:"
+echo "To start NeoZen:"
+echo ""
+if [ -f "./neozen" ]; then
+    echo -e "${GREEN}Option 1 (Recommended): Run standalone executable${NC}"
+    echo -e "${GREEN}  ./neozen${NC}"
+    echo ""
+    echo "Option 2: Use virtual environment:"
+fi
 echo -e "${GREEN}  source venv/bin/activate${NC}"
 echo -e "${GREEN}  neozen${NC}"
 echo ""
-echo "Or simply:"
+echo "Or directly:"
 echo -e "${GREEN}  ./venv/bin/neozen${NC}"
 echo ""
 echo "To deactivate the virtual environment later, run:"

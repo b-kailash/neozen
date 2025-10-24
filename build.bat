@@ -66,5 +66,7 @@ echo   neozen.exe
 echo.
 echo Or double-click neozen.exe in File Explorer
 echo.
+echo To make it available from anywhere, add the project directory to your PATH
+echo.
 
 endlocal

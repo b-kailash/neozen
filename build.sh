@@ -13,14 +13,14 @@ echo ""
 OS="unknown"
 if [[ "$OSTYPE" == "linux-gnu"* ]]; then
     OS="linux"
-    EXEC_NAME="neozen-linux"
 elif [[ "$OSTYPE" == "darwin"* ]]; then
     OS="macos"
-    EXEC_NAME="neozen-macos"
 else
     echo "❌ Unsupported operating system: $OSTYPE"
     exit 1
 fi
+
+EXEC_NAME="neozen"
 
 echo "Detected OS: $OS"
 echo ""
@@ -47,9 +47,9 @@ pyinstaller --clean --noconfirm neozen.spec
 # Move executable to project directory
 echo "Moving executable to project directory..."
 if [ -f "dist/neozen" ]; then
-    mv dist/neozen "./$EXEC_NAME"
-    chmod +x "./$EXEC_NAME"
-    echo "✓ Executable created: ./$EXEC_NAME"
+    mv dist/neozen "./neozen"
+    chmod +x "./neozen"
+    echo "✓ Executable created: ./neozen"
 else
     echo "❌ Build failed: executable not found in dist/"
     exit 1
@@ -67,9 +67,9 @@ echo "✓ Build successful!"
 echo "======================================"
 echo ""
 echo "Run the application with:"
-echo "  ./$EXEC_NAME"
+echo "  ./neozen"
 echo ""
 echo "Or make it globally available:"
-echo "  sudo cp $EXEC_NAME /usr/local/bin/neozen"
+echo "  sudo cp neozen /usr/local/bin/neozen"
 echo "  sudo chmod +x /usr/local/bin/neozen"
 echo ""
