@@ -47,6 +47,17 @@
                 </label>
             </div>
 
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="parallel-scan" />
+                    Enable Parallel Scanning (faster for network ranges)
+                </label>
+                <label for="max-workers" style="margin-left: 20px;">
+                    Max Workers:
+                    <input type="number" id="max-workers" min="1" max="10" value="5" style="width: 60px;" disabled />
+                </label>
+            </div>
+
             <div class="button-group">
                 <button id="scan-btn" class="btn btn-primary">Start Scan</button>
                 <button id="stop-btn" class="btn btn-danger" disabled>Stop Scan</button>

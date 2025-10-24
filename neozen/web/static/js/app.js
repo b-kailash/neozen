@@ -13,6 +13,8 @@ const profileSelect = document.getElementById('profile');
 const argumentsInput = document.getElementById('arguments');
 const osDetectionCheckbox = document.getElementById('os-detection');
 const serviceDetectionCheckbox = document.getElementById('service-detection');
+const parallelScanCheckbox = document.getElementById('parallel-scan');
+const maxWorkersInput = document.getElementById('max-workers');
 const scanBtn = document.getElementById('scan-btn');
 const stopBtn = document.getElementById('stop-btn');
 const saveProfileBtn = document.getElementById('save-profile-btn');
@@ -89,6 +91,10 @@ socket.on('scan_finished', (data) => {
     updateStatus(data.message);
 });
 
+socket.on('scan_progress', (data) => {
+    updateStatus(`Parallel scan progress: ${data.current}/${data.total} hosts scanned`);
+});
+
 socket.on('scan_error', (data) => {
     isScanning = false;
     updateUIState();
@@ -107,6 +113,9 @@ profileSelect.addEventListener('change', loadProfile);
 // Checkbox handlers
 osDetectionCheckbox.addEventListener('change', updateArguments);
 serviceDetectionCheckbox.addEventListener('change', updateArguments);
+parallelScanCheckbox.addEventListener('change', () => {
+    maxWorkersInput.disabled = !parallelScanCheckbox.checked;
+});
 
 // Functions
 async function loadProfiles() {
@@ -169,10 +178,18 @@ async function startScan() {
     }
 
     try {
+        // Build request body with parallel scanning options
+        const requestBody = {
+            target,
+            arguments: args.trim(),
+            parallel: parallelScanCheckbox.checked,
+            max_workers: parseInt(maxWorkersInput.value) || 5
+        };
+
         const response = await fetch(`${API_BASE}/api/scan/start`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ target, arguments: args.trim() })
+            body: JSON.stringify(requestBody)
         });
 
         const data = await response.json();
@@ -308,6 +325,9 @@ function updateUIState() {
     profileSelect.disabled = isScanning;
     osDetectionCheckbox.disabled = isScanning;
     serviceDetectionCheckbox.disabled = isScanning;
+    parallelScanCheckbox.disabled = isScanning;
+    // Max workers input enabled only when not scanning AND parallel scan is checked
+    maxWorkersInput.disabled = isScanning || !parallelScanCheckbox.checked;
     saveProfileBtn.disabled = isScanning;
 }
 

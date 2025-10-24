@@ -86,12 +86,14 @@ def delete_profile(profile_name):
 
 @app.route('/api/scan/start', methods=['POST'])
 def start_scan():
-    """Start a new Nmap scan"""
+    """Start a new Nmap scan (supports both standard and parallel scanning)"""
     global current_scanner, scan_output, scan_results
 
     data = request.json
     target = data.get('target')
     arguments = data.get('arguments', '')
+    parallel = data.get('parallel', False)  # Enable parallel scanning
+    max_workers = data.get('max_workers', 5)  # Number of parallel workers
 
     if not target:
         return jsonify({'error': 'Target is required'}), 400
@@ -105,7 +107,7 @@ def start_scan():
         scan_results = {}
 
         # Create core scanner with custom callbacks for state management + SocketIO
-        from neozen.core.scanner_core import NmapScanner
+        from neozen.core.scanner_core import NmapScanner, ParallelNmapScanner
 
         def on_output_callback(text):
             """Handle output: update state and emit SocketIO event"""
@@ -126,22 +128,47 @@ def start_scan():
             """Handle errors: emit SocketIO event"""
             socketio.emit('scan_error', {'error': error})
 
-        # Create scanner with custom callbacks
-        current_scanner = NmapScanner(
-            target, arguments,
-            on_output=on_output_callback,
-            on_results=on_results_callback,
-            on_finished=on_finished_callback,
-            on_error=on_error_callback
-        )
+        def on_progress_callback(current, total):
+            """Handle progress updates (parallel scanning only): emit SocketIO event"""
+            socketio.emit('scan_progress', {'current': current, 'total': total})
+
+        # Create scanner with custom callbacks (parallel or standard)
+        if parallel:
+            current_scanner = ParallelNmapScanner(
+                target, arguments,
+                max_workers=max_workers,
+                on_output=on_output_callback,
+                on_results=on_results_callback,
+                on_finished=on_finished_callback,
+                on_error=on_error_callback,
+                on_progress=on_progress_callback
+            )
+        else:
+            current_scanner = NmapScanner(
+                target, arguments,
+                on_output=on_output_callback,
+                on_results=on_results_callback,
+                on_finished=on_finished_callback,
+                on_error=on_error_callback
+            )
 
         # Start scan
         current_scanner.start()
 
         # Notify clients
-        socketio.emit('scan_started', {'target': target, 'arguments': arguments})
+        scan_mode = 'parallel' if parallel else 'standard'
+        socketio.emit('scan_started', {
+            'target': target,
+            'arguments': arguments,
+            'mode': scan_mode,
+            'max_workers': max_workers if parallel else None
+        })
 
-        return jsonify({'success': True, 'message': 'Scan started'})
+        return jsonify({
+            'success': True,
+            'message': f'{scan_mode.capitalize()} scan started',
+            'mode': scan_mode
+        })
 
 
 @app.route('/api/scan/stop', methods=['POST'])

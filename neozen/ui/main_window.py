@@ -11,11 +11,11 @@ from PyQt6.QtWidgets import (
     QLabel, QLineEdit, QPushButton, QTextEdit, QMessageBox, QProgressBar,
     QTabWidget, QTableWidget, QTableWidgetItem, QHeaderView, QComboBox,
     QDialog, QDialogButtonBox, QFormLayout, QCheckBox, QFileDialog,
-    QAbstractItemView, QSplitter # Added QSplitter
+    QAbstractItemView, QSplitter, QSpinBox # Added QSplitter and QSpinBox
 )
 from PyQt6.QtGui import QAction, QFont, QIcon # Added QFont and QIcon
 from PyQt6.QtCore import Qt, pyqtSignal, QThread
-from neozen.adapters.qt_scanner import QtScannerAdapter as Scanner
+from neozen.adapters.qt_scanner import QtScannerAdapter as Scanner, QtParallelScannerAdapter
 from neozen.core.profiles import ProfileManager
 from neozen.resources import get_icon_path
 
@@ -160,11 +160,31 @@ class CustomScanDialog(QDialog):
         self.no_dns_cb = QCheckBox("No DNS Resolution (-n)")
         self.no_dns_cb.setToolTip("Never do DNS resolution")
 
+        # Parallel scanning option
+        self.parallel_scan_cb = QCheckBox("Enable Parallel Scanning")
+        self.parallel_scan_cb.setToolTip("Discover live hosts first, then scan them in parallel for faster results")
+        self.parallel_scan_cb.stateChanged.connect(self._on_parallel_scan_changed)
+
+        # Max workers spinbox (only enabled when parallel scanning is enabled)
+        workers_layout = QHBoxLayout()
+        workers_label = QLabel("Max Workers:")
+        workers_label.setToolTip("Number of parallel scanner threads (1-10)")
+        self.max_workers_spinbox = QSpinBox()
+        self.max_workers_spinbox.setRange(1, 10)
+        self.max_workers_spinbox.setValue(5)
+        self.max_workers_spinbox.setEnabled(False)  # Disabled by default
+        self.max_workers_spinbox.setToolTip("Number of parallel scanner threads")
+        workers_layout.addWidget(workers_label)
+        workers_layout.addWidget(self.max_workers_spinbox)
+        workers_layout.addStretch()
+
         other_layout.addWidget(self.verbose_cb)
         other_layout.addWidget(self.verbose2_cb)
         other_layout.addWidget(self.reason_cb)
         other_layout.addWidget(self.packet_trace_cb)
         other_layout.addWidget(self.no_dns_cb)
+        other_layout.addWidget(self.parallel_scan_cb)
+        other_layout.addLayout(workers_layout)
 
         scroll_layout.addWidget(other_group)
 
@@ -231,6 +251,11 @@ class CustomScanDialog(QDialog):
             self.detect_scripts_cb.setChecked(False)
 
         self._update_command_preview()
+
+    def _on_parallel_scan_changed(self):
+        """Handle parallel scanning option (enables/disables max workers spinbox)."""
+        is_parallel = self.parallel_scan_cb.isChecked()
+        self.max_workers_spinbox.setEnabled(is_parallel)
 
     def _on_option_changed(self):
         """Handle general option changes."""
@@ -1142,7 +1167,16 @@ class MainWindow(QMainWindow):
         self._check_and_warn_privileged_scan() # Show status + warning
 
         # Create and configure the scanner thread
-        self.scanner_thread = Scanner(target, nmap_args)
+        # Use parallel scanner if enabled, otherwise use standard scanner
+        if self.parallel_scan_cb.isChecked():
+            max_workers = self.max_workers_spinbox.value()
+            self.scanner_thread = QtParallelScannerAdapter(target, nmap_args, max_workers)
+            # Connect progress signal for parallel scanning
+            self.scanner_thread.scan_progress.connect(self.update_scan_progress)
+        else:
+            self.scanner_thread = Scanner(target, nmap_args)
+
+        # Connect common signals
         self.scanner_thread.scan_output.connect(self.append_output)
         self.scanner_thread.scan_results_ready.connect(self.process_scan_results)
         self.scanner_thread.scan_finished.connect(self.scan_complete)
@@ -1174,6 +1208,11 @@ class MainWindow(QMainWindow):
         self.output_area.append(text)
         # Move scrollbar to the bottom to show the latest output
         self.output_area.verticalScrollBar().setValue(self.output_area.verticalScrollBar().maximum())
+
+    def update_scan_progress(self, current: int, total: int):
+        """Update status bar with parallel scan progress."""
+        self._current_status_message = f"Parallel scan progress: {current}/{total} hosts scanned"
+        self._check_and_warn_privileged_scan()
 
     def process_scan_results(self, results_data):
         """
@@ -1420,6 +1459,10 @@ class MainWindow(QMainWindow):
         self.custom_args_input.setEnabled(not scanning)
         self.custom_scan_builder_btn.setEnabled(not scanning)
         self.save_profile_button.setEnabled(not scanning)
+        # Parallel scanning controls
+        self.parallel_scan_cb.setEnabled(not scanning)
+        # Max workers spinbox enabled only when not scanning AND parallel scan is checked
+        self.max_workers_spinbox.setEnabled(not scanning and self.parallel_scan_cb.isChecked())
         # Delete button enabled only when not scanning AND a non-custom profile is selected
         self.delete_profile_button.setEnabled(not scanning and self.profile_combo.currentIndex() > 0)
         # File menu actions

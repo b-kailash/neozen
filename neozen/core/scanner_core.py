@@ -14,7 +14,9 @@ import os
 import shlex  # To split arguments safely
 import tempfile  # For creating temporary file for XML output
 import platform  # For platform-specific checks
-from typing import Callable, Optional, Dict, Any
+from typing import Callable, Optional, Dict, Any, List
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import time
 
 
 class NmapScanner(threading.Thread):
@@ -478,3 +480,258 @@ class NmapScanner(threading.Thread):
 
         # --- Clean up temp file if stopped ---
         self._cleanup_temp_file()
+
+
+class ParallelNmapScanner(threading.Thread):
+    """
+    Multi-threaded Nmap scanner that discovers live hosts first, then scans them in parallel.
+
+    This scanner optimizes scanning performance by:
+    1. Running a fast discovery scan (-sn) to identify live hosts
+    2. Dividing discovered hosts among worker threads
+    3. Each worker performs a full scan on its assigned hosts
+    4. Aggregating results from all workers
+
+    Uses the same callback interface as NmapScanner for compatibility.
+    """
+
+    def __init__(
+        self,
+        target: str,
+        arguments: str,
+        max_workers: int = 5,
+        on_output: Optional[Callable[[str], None]] = None,
+        on_results: Optional[Callable[[Dict[str, Any]], None]] = None,
+        on_finished: Optional[Callable[[str, str], None]] = None,
+        on_error: Optional[Callable[[str], None]] = None,
+        on_progress: Optional[Callable[[int, int], None]] = None
+    ):
+        """
+        Initialize the parallel scanner with callbacks.
+
+        Args:
+            target: The target network/range for scanning (e.g., "192.168.1.0/24")
+            arguments: Nmap arguments for the full scan (discovery will use -sn)
+            max_workers: Maximum number of parallel scanner threads (default: 5)
+            on_output: Callback for live output text
+            on_results: Callback for aggregated parsed results
+            on_finished: Callback for completion (message, xml_path)
+            on_error: Callback for errors
+            on_progress: Callback for progress updates (current, total)
+        """
+        super().__init__(daemon=True)
+        self.target = target
+        self.scan_arguments = arguments
+        self.max_workers = max_workers
+        self._is_running = True
+        self._scanners: List[NmapScanner] = []
+        self._executor: Optional[ThreadPoolExecutor] = None
+
+        # Store callbacks
+        self._on_output = on_output or (lambda x: None)
+        self._on_results = on_results or (lambda x: None)
+        self._on_finished = on_finished or (lambda x, y: None)
+        self._on_error = on_error or (lambda x: None)
+        self._on_progress = on_progress or (lambda x, y: None)
+
+    def _discover_live_hosts(self) -> List[str]:
+        """
+        Run a fast ping scan to discover live hosts in the target range.
+
+        Returns:
+            List of live host IP addresses
+        """
+        live_hosts = []
+        discovery_complete = threading.Event()
+        discovery_error = threading.Event()
+
+        def on_discovery_output(text: str):
+            self._on_output(f"[Discovery] {text}")
+
+        def on_discovery_results(results: Dict[str, Any]):
+            nonlocal live_hosts
+            # Extract all host IPs that are 'up'
+            for host_ip, host_data in results.items():
+                if host_data.get('state') == 'up':
+                    live_hosts.append(host_ip)
+            discovery_complete.set()
+
+        def on_discovery_finished(message: str, xml_path: str):
+            self._on_output(f"[Discovery] {message}")
+            discovery_complete.set()
+
+        def on_discovery_error(error: str):
+            self._on_output(f"[Discovery Error] {error}")
+            discovery_error.set()
+            discovery_complete.set()
+
+        # Create discovery scanner with -sn (ping scan, no port scan)
+        self._on_output(f"Phase 1: Discovering live hosts in {self.target}...")
+        discovery_scanner = NmapScanner(
+            target=self.target,
+            arguments="-sn",  # Ping scan only
+            on_output=on_discovery_output,
+            on_results=on_discovery_results,
+            on_finished=on_discovery_finished,
+            on_error=on_discovery_error
+        )
+
+        self._scanners.append(discovery_scanner)
+        discovery_scanner.start()
+
+        # Wait for discovery to complete (with timeout)
+        discovery_complete.wait(timeout=300)  # 5 minute timeout
+
+        if discovery_error.is_set():
+            self._on_output("[Discovery] Failed to complete host discovery")
+            return []
+
+        if not self._is_running:
+            self._on_output("[Discovery] Stopped by user")
+            return []
+
+        self._on_output(f"[Discovery] Found {len(live_hosts)} live host(s): {', '.join(live_hosts)}")
+        return live_hosts
+
+    def _scan_host(self, host: str, worker_id: int) -> Dict[str, Any]:
+        """
+        Scan a single host using NmapScanner.
+
+        Args:
+            host: IP address to scan
+            worker_id: Worker thread identifier
+
+        Returns:
+            Parsed results dictionary for this host
+        """
+        results = {}
+        scan_complete = threading.Event()
+        scan_error = threading.Event()
+
+        def on_worker_output(text: str):
+            self._on_output(f"[Worker-{worker_id}] {text}")
+
+        def on_worker_results(worker_results: Dict[str, Any]):
+            nonlocal results
+            results = worker_results
+            scan_complete.set()
+
+        def on_worker_finished(message: str, xml_path: str):
+            self._on_output(f"[Worker-{worker_id}] Completed scan of {host}")
+            scan_complete.set()
+
+        def on_worker_error(error: str):
+            self._on_output(f"[Worker-{worker_id} Error] {error}")
+            scan_error.set()
+            scan_complete.set()
+
+        # Create scanner for this host
+        scanner = NmapScanner(
+            target=host,
+            arguments=self.scan_arguments,
+            on_output=on_worker_output,
+            on_results=on_worker_results,
+            on_finished=on_worker_finished,
+            on_error=on_worker_error
+        )
+
+        self._scanners.append(scanner)
+        scanner.start()
+
+        # Wait for scan to complete
+        scan_complete.wait(timeout=600)  # 10 minute timeout per host
+
+        if scan_error.is_set() or not self._is_running:
+            return {}
+
+        return results
+
+    def run(self):
+        """
+        Main execution method: discover hosts, then scan them in parallel.
+        """
+        try:
+            # Phase 1: Discovery
+            live_hosts = self._discover_live_hosts()
+
+            if not live_hosts:
+                self._on_output("No live hosts found. Scan complete.")
+                self._on_results({})
+                self._on_finished("Scan complete (no live hosts)", "")
+                return
+
+            if not self._is_running:
+                self._on_error("Scan stopped during discovery phase")
+                return
+
+            # Phase 2: Parallel scanning
+            self._on_output(f"\nPhase 2: Scanning {len(live_hosts)} live host(s) using {self.max_workers} workers...")
+            aggregated_results = {}
+            completed_count = 0
+            total_hosts = len(live_hosts)
+
+            # Use ThreadPoolExecutor for parallel scanning
+            self._executor = ThreadPoolExecutor(max_workers=self.max_workers)
+
+            # Submit all host scans
+            future_to_host = {
+                self._executor.submit(self._scan_host, host, idx + 1): host
+                for idx, host in enumerate(live_hosts)
+            }
+
+            # Process results as they complete
+            for future in as_completed(future_to_host):
+                if not self._is_running:
+                    self._on_output("Scan stopped by user")
+                    break
+
+                host = future_to_host[future]
+                try:
+                    host_results = future.result()
+                    if host_results:
+                        aggregated_results.update(host_results)
+
+                    completed_count += 1
+                    self._on_progress(completed_count, total_hosts)
+                    self._on_output(f"Progress: {completed_count}/{total_hosts} hosts scanned")
+
+                except Exception as e:
+                    self._on_output(f"Error scanning host {host}: {e}")
+
+            # Shutdown executor
+            self._executor.shutdown(wait=True)
+
+            if not self._is_running:
+                self._on_error("Scan stopped by user")
+                return
+
+            # Emit final results
+            self._on_output(f"\nScan complete! Scanned {len(aggregated_results)} host(s)")
+            self._on_results(aggregated_results)
+            self._on_finished(
+                f"Parallel scan complete: {len(aggregated_results)} host(s) scanned",
+                ""  # No single XML file for parallel scans
+            )
+
+        except Exception as e:
+            if self._is_running:
+                self._on_error(f"Parallel scan failed: {e}")
+            self._is_running = False
+
+    def stop(self):
+        """
+        Stop the parallel scan by terminating all worker scanners.
+        """
+        self._on_output("Stopping parallel scan...")
+        self._is_running = False
+
+        # Stop all active scanners
+        for scanner in self._scanners:
+            if scanner.is_alive():
+                scanner.stop()
+
+        # Shutdown executor if running
+        if self._executor:
+            self._executor.shutdown(wait=False)
+
+        self._on_output("Parallel scan stopped")

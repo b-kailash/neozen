@@ -6,7 +6,7 @@ translating callbacks into Qt signals for use in PyQt6 applications.
 """
 
 from PyQt6.QtCore import QObject, pyqtSignal
-from neozen.core.scanner_core import NmapScanner
+from neozen.core.scanner_core import NmapScanner, ParallelNmapScanner
 
 
 class QtScannerAdapter(QObject):
@@ -58,6 +58,76 @@ class QtScannerAdapter(QObject):
     def isRunning(self) -> bool:
         """
         Check if scan is running.
+
+        Returns:
+            bool: True if the scanner thread is alive, False otherwise.
+        """
+        return self.scanner.is_alive()
+
+    def wait(self, msecs: int = -1) -> bool:
+        """
+        Wait for thread to finish (Qt compatibility method).
+
+        Args:
+            msecs: Maximum time to wait in milliseconds. -1 means wait forever.
+
+        Returns:
+            bool: True if thread finished, False if timeout occurred.
+        """
+        timeout = None if msecs == -1 else msecs / 1000.0
+        self.scanner.join(timeout=timeout)
+        return not self.scanner.is_alive()
+
+
+class QtParallelScannerAdapter(QObject):
+    """
+    Qt adapter for ParallelNmapScanner with progress tracking.
+
+    This adapter wraps the ParallelNmapScanner with Qt signals, providing
+    the same interface as QtScannerAdapter plus an additional progress signal.
+    """
+
+    # Qt signals
+    scan_output = pyqtSignal(str)
+    scan_results_ready = pyqtSignal(dict)
+    scan_finished = pyqtSignal(str, str)  # (status_message, temp_xml_path)
+    scan_error = pyqtSignal(str)
+    scan_progress = pyqtSignal(int, int)  # (current, total)
+
+    def __init__(self, target: str, arguments: str, max_workers: int = 5):
+        """
+        Initialize Qt parallel scanner adapter.
+
+        Args:
+            target: The target network/range for scanning (e.g., "192.168.1.0/24")
+            arguments: Nmap arguments for the full scan (discovery will use -sn)
+            max_workers: Maximum number of parallel scanner threads (default: 5)
+        """
+        super().__init__()
+
+        # Create core parallel scanner with Qt signal callbacks
+        self.scanner = ParallelNmapScanner(
+            target=target,
+            arguments=arguments,
+            max_workers=max_workers,
+            on_output=self.scan_output.emit,
+            on_results=self.scan_results_ready.emit,
+            on_finished=self.scan_finished.emit,
+            on_error=self.scan_error.emit,
+            on_progress=self.scan_progress.emit
+        )
+
+    def start(self):
+        """Start the parallel scan thread."""
+        self.scanner.start()
+
+    def stop(self):
+        """Stop the running parallel scan."""
+        self.scanner.stop()
+
+    def isRunning(self) -> bool:
+        """
+        Check if parallel scan is running.
 
         Returns:
             bool: True if the scanner thread is alive, False otherwise.
