@@ -233,14 +233,27 @@ class MainWindow(QMainWindow):
         self.scan_type_combo.addItem("UDP scan (-sU)", "-sU")
         self.scan_type_combo.setItemData(self.scan_type_combo.count()-1, "UDP Scan (Requires privileges)", Qt.ItemDataRole.ToolTipRole)
         self.scan_type_combo.setToolTip("Select a common scan type (sets arguments below)")
+
+        # OS Detection checkbox
+        self.os_detection_checkbox = QCheckBox("Enable OS Detection (-O)")
+        self.os_detection_checkbox.setChecked(True)  # Enabled by default
+        self.os_detection_checkbox.setToolTip("Add OS detection to the scan (requires privileges)")
+
+        # Service Version Detection checkbox
+        self.service_detection_checkbox = QCheckBox("Enable Service/Version Detection (-sV)")
+        self.service_detection_checkbox.setChecked(True)  # Enabled by default
+        self.service_detection_checkbox.setToolTip("Probe open ports to determine service/version info (no privileges required)")
+
         custom_args_label = QLabel("Nmap Arguments:")
         self.custom_args_input = QLineEdit()
-        self.custom_args_input.setPlaceholderText("e.g., -p 80,443 -sV --script=vuln")
+        self.custom_args_input.setPlaceholderText("e.g., -p 80,443 --script=vuln")
         self.custom_args_input.setToolTip("Arguments defined by Scan Type, or enter custom ones")
         scan_config_layout.addWidget(scan_type_label, 0, 0)
         scan_config_layout.addWidget(self.scan_type_combo, 0, 1)
+        scan_config_layout.addWidget(self.os_detection_checkbox, 0, 2)
+        scan_config_layout.addWidget(self.service_detection_checkbox, 0, 3)
         scan_config_layout.addWidget(custom_args_label, 1, 0)
-        scan_config_layout.addWidget(self.custom_args_input, 1, 1)
+        scan_config_layout.addWidget(self.custom_args_input, 1, 1, 1, 3)
 
         # Command display row
         command_display_layout = QHBoxLayout()
@@ -398,6 +411,9 @@ class MainWindow(QMainWindow):
         # Scan configuration changes
         self.scan_type_combo.currentIndexChanged.connect(self.update_args_from_scan_type)
         self.profile_combo.currentIndexChanged.connect(self.load_profile_settings)
+        self.os_detection_checkbox.stateChanged.connect(self._update_command_display)
+        self.os_detection_checkbox.stateChanged.connect(self._check_and_warn_privileged_scan)
+        self.service_detection_checkbox.stateChanged.connect(self._update_command_display)
         # Profile management buttons
         self.save_profile_button.clicked.connect(self.save_current_profile)
         self.delete_profile_button.clicked.connect(self.delete_selected_profile)
@@ -415,7 +431,7 @@ class MainWindow(QMainWindow):
     # --- Privilege Check ---
     def _check_and_warn_privileged_scan(self):
         """
-        Checks the current Nmap arguments for flags requiring elevation.
+        Checks the current Nmap arguments and OS detection checkbox for flags requiring elevation.
         Updates the status bar label with a warning message if needed.
         """
         args_string = self.custom_args_input.text()
@@ -428,6 +444,10 @@ class MainWindow(QMainWindow):
 
         # Check if any of the defined privileged flags are present
         needs_privileges = any(flag in args_list for flag in self.PRIVILEGED_FLAGS)
+
+        # OS detection checkbox also requires privileges
+        if self.os_detection_checkbox.isChecked():
+            needs_privileges = True
 
         # Construct the status message
         status_text = self._current_status_message
@@ -443,7 +463,7 @@ class MainWindow(QMainWindow):
     def _update_command_display(self):
         """
         Constructs a string representing the Nmap command based on current
-        UI settings (target, arguments) and displays it in a read-only field.
+        UI settings (target, arguments, OS detection, service detection) and displays it in a read-only field.
         """
         target = self.target_input.text().strip()
         args_string = self.custom_args_input.text().strip()
@@ -459,11 +479,32 @@ class MainWindow(QMainWindow):
             # Split arguments for potentially better joining later if needed
             # Filter ensures empty strings from split aren't included
             args_list = list(filter(None, shlex.split(args_string)))
+
+            # Add OS detection flag if checkbox is checked and not already present
+            if self.os_detection_checkbox.isChecked():
+                # Only add -O if -A or -O is not already in the arguments
+                if '-A' not in args_list and '-O' not in args_list:
+                    args_list.append('-O')
+
+            # Add service version detection flag if checkbox is checked and not already present
+            if self.service_detection_checkbox.isChecked():
+                # Only add -sV if -A or -sV is not already in the arguments
+                if '-A' not in args_list and '-sV' not in args_list:
+                    args_list.append('-sV')
+
             command_parts.extend(args_list)
         except ValueError:
             # If args are malformed, just append the raw string if it's not empty
             if args_string:
                  command_parts.append(args_string)
+            # Still try to add -O if checkbox is checked
+            if self.os_detection_checkbox.isChecked():
+                if '-A' not in args_string and '-O' not in args_string:
+                    command_parts.append('-O')
+            # Still try to add -sV if checkbox is checked
+            if self.service_detection_checkbox.isChecked():
+                if '-A' not in args_string and '-sV' not in args_string:
+                    command_parts.append('-sV')
 
         # Add target, quoting it using shlex.quote for safety if it contains spaces/special chars
         command_parts.append(shlex.quote(target))
@@ -641,8 +682,44 @@ class MainWindow(QMainWindow):
 
     # --- Scan Methods ---
     def get_nmap_arguments(self):
-        """Returns the Nmap arguments string currently shown in the input field."""
-        return self.custom_args_input.text().strip()
+        """
+        Returns the Nmap arguments string including OS detection and service detection flags if enabled.
+
+        Returns:
+            str: Final Nmap arguments string
+        """
+        args_string = self.custom_args_input.text().strip()
+
+        try:
+            args_list = shlex.split(args_string) if args_string else []
+
+            # Add OS detection flag if checkbox is checked and not already present
+            if self.os_detection_checkbox.isChecked():
+                # Only add -O if -A or -O is not already in the arguments
+                if '-A' not in args_list and '-O' not in args_list:
+                    args_list.append('-O')
+
+            # Add service version detection flag if checkbox is checked and not already present
+            if self.service_detection_checkbox.isChecked():
+                # Only add -sV if -A or -sV is not already in the arguments
+                if '-A' not in args_list and '-sV' not in args_list:
+                    args_list.append('-sV')
+
+            # Join back into string
+            return ' '.join(args_list) if args_list else ''
+        except ValueError:
+            # If parsing fails, check with simple string operations
+            result = args_string
+
+            if self.os_detection_checkbox.isChecked():
+                if '-A' not in args_string and '-O' not in args_string:
+                    result = f"{result} -O" if result else "-O"
+
+            if self.service_detection_checkbox.isChecked():
+                if '-A' not in args_string and '-sV' not in args_string:
+                    result = f"{result} -sV" if result else "-sV"
+
+            return result
 
     def _cleanup_last_scan_file(self):
         """Safely removes the temporary XML file from the PREVIOUS scan."""
@@ -951,6 +1028,8 @@ class MainWindow(QMainWindow):
         self.progress_bar.setVisible(scanning)
         self.profile_combo.setEnabled(not scanning)
         self.scan_type_combo.setEnabled(not scanning)
+        self.os_detection_checkbox.setEnabled(not scanning)
+        self.service_detection_checkbox.setEnabled(not scanning)
         self.custom_args_input.setEnabled(not scanning)
         self.save_profile_button.setEnabled(not scanning)
         # Delete button enabled only when not scanning AND a non-custom profile is selected
