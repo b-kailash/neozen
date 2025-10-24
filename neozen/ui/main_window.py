@@ -19,6 +19,362 @@ from neozen.core.scanner import Scanner
 from neozen.core.profiles import ProfileManager
 from neozen.resources import get_icon_path
 
+# --- Custom Scan Builder Dialog ---
+class CustomScanDialog(QDialog):
+    """
+    Dialog for building custom scan types by selecting various Nmap options.
+    Handles option incompatibilities by disabling conflicting options.
+    """
+    def __init__(self, parent=None):
+        """Initializes the custom scan builder dialog."""
+        super().__init__(parent)
+        self.setWindowTitle("Custom Scan Builder")
+        self.setMinimumWidth(600)
+
+        # Main layout
+        main_layout = QVBoxLayout(self)
+
+        # Create scroll area for options
+        scroll = QWidget()
+        scroll_layout = QVBoxLayout(scroll)
+
+        # --- Scan Techniques (Mutually Exclusive) ---
+        scan_tech_group = QWidget()
+        scan_tech_layout = QVBoxLayout(scan_tech_group)
+        scan_tech_layout.addWidget(QLabel("<b>Scan Technique:</b>"))
+
+        self.scan_technique_group = []
+        scan_techniques = [
+            ("sS", "TCP SYN Scan (-sS)", "Stealth scan, requires privileges"),
+            ("sT", "TCP Connect Scan (-sT)", "Full TCP connection, no privileges needed"),
+            ("sU", "UDP Scan (-sU)", "Scan UDP ports, requires privileges"),
+            ("sA", "TCP ACK Scan (-sA)", "Map firewall rulesets, requires privileges"),
+            ("sW", "TCP Window Scan (-sW)", "Differentiate open/closed ports, requires privileges"),
+            ("sN", "TCP Null Scan (-sN)", "No flags set, requires privileges"),
+            ("sF", "TCP FIN Scan (-sF)", "FIN flag only, requires privileges"),
+            ("sX", "TCP Xmas Scan (-sX)", "FIN, PSH, URG flags, requires privileges"),
+            ("sn", "Ping Scan (-sn)", "Host discovery only, no port scan"),
+        ]
+
+        for key, label, tooltip in scan_techniques:
+            cb = QCheckBox(label)
+            cb.setToolTip(tooltip)
+            cb.setProperty("option_key", key)
+            cb.stateChanged.connect(self._on_scan_technique_changed)
+            self.scan_technique_group.append(cb)
+            scan_tech_layout.addWidget(cb)
+
+        scroll_layout.addWidget(scan_tech_group)
+
+        # --- Port Specification ---
+        port_group = QWidget()
+        port_layout = QVBoxLayout(port_group)
+        port_layout.addWidget(QLabel("<b>Port Specification:</b>"))
+
+        self.port_fast_cb = QCheckBox("Fast Scan (-F)")
+        self.port_fast_cb.setToolTip("Scan fewer ports than default (top 100)")
+        self.port_fast_cb.stateChanged.connect(self._on_option_changed)
+
+        self.port_all_cb = QCheckBox("All Ports (-p-)")
+        self.port_all_cb.setToolTip("Scan all 65535 ports")
+        self.port_all_cb.stateChanged.connect(self._on_option_changed)
+
+        self.port_top_cb = QCheckBox("Top Ports (-p 1-1000)")
+        self.port_top_cb.setToolTip("Scan ports 1-1000")
+        self.port_top_cb.stateChanged.connect(self._on_option_changed)
+
+        port_layout.addWidget(self.port_fast_cb)
+        port_layout.addWidget(self.port_all_cb)
+        port_layout.addWidget(self.port_top_cb)
+
+        scroll_layout.addWidget(port_group)
+
+        # --- Timing Template (Mutually Exclusive) ---
+        timing_group = QWidget()
+        timing_layout = QVBoxLayout(timing_group)
+        timing_layout.addWidget(QLabel("<b>Timing Template:</b>"))
+
+        self.timing_group = []
+        timings = [
+            ("T0", "Paranoid (-T0)", "Very slow, for IDS evasion"),
+            ("T1", "Sneaky (-T1)", "Slow, for IDS evasion"),
+            ("T2", "Polite (-T2)", "Slower, less bandwidth"),
+            ("T3", "Normal (-T3)", "Default timing"),
+            ("T4", "Aggressive (-T4)", "Faster, assumes fast network"),
+            ("T5", "Insane (-T5)", "Very fast, may sacrifice accuracy"),
+        ]
+
+        for key, label, tooltip in timings:
+            cb = QCheckBox(label)
+            cb.setToolTip(tooltip)
+            cb.setProperty("option_key", key)
+            cb.stateChanged.connect(self._on_timing_changed)
+            self.timing_group.append(cb)
+            timing_layout.addWidget(cb)
+
+        scroll_layout.addWidget(timing_group)
+
+        # --- Detection Options ---
+        detection_group = QWidget()
+        detection_layout = QVBoxLayout(detection_group)
+        detection_layout.addWidget(QLabel("<b>Detection & Enumeration:</b>"))
+
+        self.detect_os_cb = QCheckBox("OS Detection (-O)")
+        self.detect_os_cb.setToolTip("Enable OS detection (requires privileges)")
+
+        self.detect_version_cb = QCheckBox("Version Detection (-sV)")
+        self.detect_version_cb.setToolTip("Probe open ports to determine service/version")
+
+        self.detect_scripts_cb = QCheckBox("Default Scripts (-sC)")
+        self.detect_scripts_cb.setToolTip("Run default NSE scripts")
+
+        self.detect_aggressive_cb = QCheckBox("Aggressive Scan (-A)")
+        self.detect_aggressive_cb.setToolTip("Enable OS detection, version detection, script scanning, and traceroute")
+        self.detect_aggressive_cb.stateChanged.connect(self._on_aggressive_changed)
+
+        detection_layout.addWidget(self.detect_os_cb)
+        detection_layout.addWidget(self.detect_version_cb)
+        detection_layout.addWidget(self.detect_scripts_cb)
+        detection_layout.addWidget(self.detect_aggressive_cb)
+
+        scroll_layout.addWidget(detection_group)
+
+        # --- Other Options ---
+        other_group = QWidget()
+        other_layout = QVBoxLayout(other_group)
+        other_layout.addWidget(QLabel("<b>Other Options:</b>"))
+
+        self.verbose_cb = QCheckBox("Verbose Output (-v)")
+        self.verbose_cb.setToolTip("Increase verbosity level")
+
+        self.verbose2_cb = QCheckBox("Very Verbose (-vv)")
+        self.verbose2_cb.setToolTip("Increase verbosity level even more")
+        self.verbose2_cb.stateChanged.connect(self._on_option_changed)
+
+        self.reason_cb = QCheckBox("Show Reason (--reason)")
+        self.reason_cb.setToolTip("Display reason for port state")
+
+        self.packet_trace_cb = QCheckBox("Packet Trace (--packet-trace)")
+        self.packet_trace_cb.setToolTip("Show all packets sent and received")
+
+        self.no_dns_cb = QCheckBox("No DNS Resolution (-n)")
+        self.no_dns_cb.setToolTip("Never do DNS resolution")
+
+        other_layout.addWidget(self.verbose_cb)
+        other_layout.addWidget(self.verbose2_cb)
+        other_layout.addWidget(self.reason_cb)
+        other_layout.addWidget(self.packet_trace_cb)
+        other_layout.addWidget(self.no_dns_cb)
+
+        scroll_layout.addWidget(other_group)
+
+        # Add scroll area
+        main_layout.addWidget(scroll)
+
+        # --- Command Preview ---
+        preview_layout = QHBoxLayout()
+        preview_layout.addWidget(QLabel("<b>Command Preview:</b>"))
+        self.command_preview = QLineEdit()
+        self.command_preview.setReadOnly(True)
+        self.command_preview.setFont(QFont("Monospace"))
+        preview_layout.addWidget(self.command_preview)
+        main_layout.addLayout(preview_layout)
+
+        # --- Dialog Buttons ---
+        self.button_box = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        self.button_box.accepted.connect(self.accept)
+        self.button_box.rejected.connect(self.reject)
+        main_layout.addWidget(self.button_box)
+
+        # Initial update
+        self._update_command_preview()
+
+    def _on_scan_technique_changed(self):
+        """Handle scan technique selection (mutually exclusive within group)."""
+        sender = self.sender()
+        if sender.isChecked():
+            # Uncheck all other scan techniques
+            for cb in self.scan_technique_group:
+                if cb != sender:
+                    cb.setChecked(False)
+
+        # Check for ping scan compatibility
+        self._check_ping_scan_compatibility()
+        self._update_command_preview()
+
+    def _on_timing_changed(self):
+        """Handle timing template selection (mutually exclusive)."""
+        sender = self.sender()
+        if sender.isChecked():
+            # Uncheck all other timing templates
+            for cb in self.timing_group:
+                if cb != sender:
+                    cb.setChecked(False)
+
+        self._update_command_preview()
+
+    def _on_aggressive_changed(self):
+        """Handle aggressive scan option (disables individual detection options)."""
+        is_aggressive = self.detect_aggressive_cb.isChecked()
+
+        # Disable individual detection options when -A is selected
+        self.detect_os_cb.setEnabled(not is_aggressive)
+        self.detect_version_cb.setEnabled(not is_aggressive)
+        self.detect_scripts_cb.setEnabled(not is_aggressive)
+
+        if is_aggressive:
+            # Uncheck the individual options
+            self.detect_os_cb.setChecked(False)
+            self.detect_version_cb.setChecked(False)
+            self.detect_scripts_cb.setChecked(False)
+
+        self._update_command_preview()
+
+    def _on_option_changed(self):
+        """Handle general option changes."""
+        # Port specification mutual exclusivity
+        sender = self.sender()
+        if sender == self.port_fast_cb and self.port_fast_cb.isChecked():
+            self.port_all_cb.setChecked(False)
+            self.port_top_cb.setChecked(False)
+        elif sender == self.port_all_cb and self.port_all_cb.isChecked():
+            self.port_fast_cb.setChecked(False)
+            self.port_top_cb.setChecked(False)
+        elif sender == self.port_top_cb and self.port_top_cb.isChecked():
+            self.port_fast_cb.setChecked(False)
+            self.port_all_cb.setChecked(False)
+
+        # Verbose mutual exclusivity
+        if sender == self.verbose2_cb and self.verbose2_cb.isChecked():
+            self.verbose_cb.setChecked(False)
+
+        self._check_ping_scan_compatibility()
+        self._update_command_preview()
+
+    def _check_ping_scan_compatibility(self):
+        """Disable port-related options when ping scan (-sn) is selected."""
+        ping_scan_selected = False
+        for cb in self.scan_technique_group:
+            if cb.property("option_key") == "sn" and cb.isChecked():
+                ping_scan_selected = True
+                break
+
+        # Disable port options when ping scan is selected
+        self.port_fast_cb.setEnabled(not ping_scan_selected)
+        self.port_all_cb.setEnabled(not ping_scan_selected)
+        self.port_top_cb.setEnabled(not ping_scan_selected)
+
+        if ping_scan_selected:
+            self.port_fast_cb.setChecked(False)
+            self.port_all_cb.setChecked(False)
+            self.port_top_cb.setChecked(False)
+
+    def _update_command_preview(self):
+        """Update the command preview based on selected options."""
+        args = []
+
+        # Scan techniques
+        for cb in self.scan_technique_group:
+            if cb.isChecked():
+                args.append(f"-{cb.property('option_key')}")
+
+        # Port specification
+        if self.port_fast_cb.isChecked():
+            args.append("-F")
+        elif self.port_all_cb.isChecked():
+            args.append("-p-")
+        elif self.port_top_cb.isChecked():
+            args.append("-p 1-1000")
+
+        # Timing
+        for cb in self.timing_group:
+            if cb.isChecked():
+                args.append(f"-{cb.property('option_key')}")
+
+        # Detection
+        if self.detect_aggressive_cb.isChecked():
+            args.append("-A")
+        else:
+            if self.detect_os_cb.isChecked():
+                args.append("-O")
+            if self.detect_version_cb.isChecked():
+                args.append("-sV")
+            if self.detect_scripts_cb.isChecked():
+                args.append("-sC")
+
+        # Other options
+        if self.verbose2_cb.isChecked():
+            args.append("-vv")
+        elif self.verbose_cb.isChecked():
+            args.append("-v")
+
+        if self.reason_cb.isChecked():
+            args.append("--reason")
+        if self.packet_trace_cb.isChecked():
+            args.append("--packet-trace")
+        if self.no_dns_cb.isChecked():
+            args.append("-n")
+
+        # Update preview
+        command = "nmap " + " ".join(args) + " <target>"
+        self.command_preview.setText(command)
+
+    def get_arguments(self):
+        """
+        Returns the constructed Nmap arguments string.
+
+        Returns:
+            str: Nmap arguments
+        """
+        args = []
+
+        # Scan techniques
+        for cb in self.scan_technique_group:
+            if cb.isChecked():
+                args.append(f"-{cb.property('option_key')}")
+
+        # Port specification
+        if self.port_fast_cb.isChecked():
+            args.append("-F")
+        elif self.port_all_cb.isChecked():
+            args.append("-p-")
+        elif self.port_top_cb.isChecked():
+            args.append("-p 1-1000")
+
+        # Timing
+        for cb in self.timing_group:
+            if cb.isChecked():
+                args.append(f"-{cb.property('option_key')}")
+
+        # Detection
+        if self.detect_aggressive_cb.isChecked():
+            args.append("-A")
+        else:
+            if self.detect_os_cb.isChecked():
+                args.append("-O")
+            if self.detect_version_cb.isChecked():
+                args.append("-sV")
+            if self.detect_scripts_cb.isChecked():
+                args.append("-sC")
+
+        # Other options
+        if self.verbose2_cb.isChecked():
+            args.append("-vv")
+        elif self.verbose_cb.isChecked():
+            args.append("-v")
+
+        if self.reason_cb.isChecked():
+            args.append("--reason")
+        if self.packet_trace_cb.isChecked():
+            args.append("--packet-trace")
+        if self.no_dns_cb.isChecked():
+            args.append("-n")
+
+        return " ".join(args)
+
+
 # --- Save Scan Results Dialog ---
 class SaveScanDialog(QDialog):
     """
@@ -248,12 +604,18 @@ class MainWindow(QMainWindow):
         self.custom_args_input = QLineEdit()
         self.custom_args_input.setPlaceholderText("e.g., -p 80,443 --script=vuln")
         self.custom_args_input.setToolTip("Arguments defined by Scan Type, or enter custom ones")
+
+        # Custom Scan Builder button
+        self.custom_scan_builder_btn = QPushButton("Build Custom Scan...")
+        self.custom_scan_builder_btn.setToolTip("Open visual builder for creating custom scan arguments")
+
         scan_config_layout.addWidget(scan_type_label, 0, 0)
         scan_config_layout.addWidget(self.scan_type_combo, 0, 1)
         scan_config_layout.addWidget(self.os_detection_checkbox, 0, 2)
         scan_config_layout.addWidget(self.service_detection_checkbox, 0, 3)
         scan_config_layout.addWidget(custom_args_label, 1, 0)
-        scan_config_layout.addWidget(self.custom_args_input, 1, 1, 1, 3)
+        scan_config_layout.addWidget(self.custom_args_input, 1, 1, 1, 2)
+        scan_config_layout.addWidget(self.custom_scan_builder_btn, 1, 3)
 
         # Command display row
         command_display_layout = QHBoxLayout()
@@ -417,6 +779,8 @@ class MainWindow(QMainWindow):
         # Profile management buttons
         self.save_profile_button.clicked.connect(self.save_current_profile)
         self.delete_profile_button.clicked.connect(self.delete_selected_profile)
+        # Custom scan builder button
+        self.custom_scan_builder_btn.clicked.connect(self.open_custom_scan_builder)
         # Results table selection -> Host Details update
         self.results_table.itemSelectionChanged.connect(self.display_host_details)
         # Notes area -> Save notes when changed
@@ -515,6 +879,21 @@ class MainWindow(QMainWindow):
 
 
     # --- Profile Methods ---
+    def open_custom_scan_builder(self):
+        """Opens the custom scan builder dialog to create scan arguments visually."""
+        dialog = CustomScanDialog(self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            # Get the constructed arguments
+            custom_args = dialog.get_arguments()
+            # Set the arguments in the input field
+            self.custom_args_input.setText(custom_args)
+            # Make the field editable so user can further modify if needed
+            self.custom_args_input.setReadOnly(False)
+            self.custom_args_input.setToolTip("Custom arguments from scan builder (editable)")
+            # Update command display and privilege warning
+            self._update_command_display()
+            self._check_and_warn_privileged_scan()
+
     def update_args_from_scan_type(self):
         """
         Updates the 'Nmap Arguments' input field based on the selected 'Scan Type'.
@@ -1031,6 +1410,7 @@ class MainWindow(QMainWindow):
         self.os_detection_checkbox.setEnabled(not scanning)
         self.service_detection_checkbox.setEnabled(not scanning)
         self.custom_args_input.setEnabled(not scanning)
+        self.custom_scan_builder_btn.setEnabled(not scanning)
         self.save_profile_button.setEnabled(not scanning)
         # Delete button enabled only when not scanning AND a non-custom profile is selected
         self.delete_profile_button.setEnabled(not scanning and self.profile_combo.currentIndex() > 0)
