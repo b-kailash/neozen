@@ -2000,21 +2000,32 @@ class MainWindow(QMainWindow):
 
                 writer.writerow(header_row + additional_headers)
 
-                # Write data rows
+                # Track exported IPs to avoid duplicates (one row per host)
+                exported_ips = set()
+                exported_count = 0
+
+                # Write data rows - only unique hosts
                 for row in range(self.results_table.rowCount()):
+                    # Get IP address from Host column's UserRole data
+                    host_item = self.results_table.item(row, 0)
+                    ip_address = ""
+                    if host_item:
+                        ip_address = host_item.data(Qt.ItemDataRole.UserRole) or ""
+
+                    # Skip if we've already exported this IP
+                    if ip_address and ip_address in exported_ips:
+                        continue
+
+                    # Mark this IP as exported
+                    if ip_address:
+                        exported_ips.add(ip_address)
+
                     row_data = []
 
                     # Get selected columns data
                     for col in selected_columns:
                         item = self.results_table.item(row, col)
                         row_data.append(item.text() if item else "")
-
-                    # Add additional data
-                    # Get IP address from Host column's UserRole data
-                    host_item = self.results_table.item(row, 0)
-                    ip_address = ""
-                    if host_item:
-                        ip_address = host_item.data(Qt.ItemDataRole.UserRole) or ""
 
                     # Get MAC if not already in selected columns
                     if 0 not in selected_columns:
@@ -2049,11 +2060,12 @@ class MainWindow(QMainWindow):
                     row_data.append(detected_os)
 
                     writer.writerow(row_data)
+                    exported_count += 1
 
-            self._current_status_message = f"Exported {self.results_table.rowCount()} rows to {filename}"
+            self._current_status_message = f"Exported {exported_count} unique hosts to {filename}"
             self._check_and_warn_privileged_scan()
             QMessageBox.information(self, "Export Successful",
-                                   f"Successfully exported {self.results_table.rowCount()} rows to:\n{filename}")
+                                   f"Successfully exported {exported_count} unique hosts to:\n{filename}")
 
         except Exception as e:
             QMessageBox.critical(self, "Export Error", f"Failed to export to CSV:\n{e}")
