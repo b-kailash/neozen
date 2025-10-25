@@ -1642,8 +1642,10 @@ class MainWindow(QMainWindow):
         # Delete button enabled only when not scanning AND a non-custom profile is selected
         self.delete_profile_button.setEnabled(not scanning and self.profile_combo.currentIndex() > 0)
         # File menu actions
-        # Save enabled only when not scanning AND results from last scan exist
-        self.save_action.setEnabled(not scanning and bool(self.last_scan_xml_path and os.path.exists(self.last_scan_xml_path)))
+        # Save enabled only when not scanning AND (results from last scan exist OR we have scan data)
+        has_xml = bool(self.last_scan_xml_path and os.path.exists(self.last_scan_xml_path))
+        has_data = bool(self.current_scan_data)
+        self.save_action.setEnabled(not scanning and (has_xml or has_data))
         self.open_action.setEnabled(not scanning) # Allow opening when idle
         # Export enabled when not scanning AND table has data
         self.export_csv_action.setEnabled(not scanning and self.results_table.rowCount() > 0)
@@ -1667,11 +1669,15 @@ class MainWindow(QMainWindow):
         Slot connected to scanner's scan_finished signal.
         Stores the temp XML path and enables the save action.
         """
-        self.last_scan_xml_path = temp_xml_path # Store path for potential saving
+        # Store path for potential saving (empty string for parallel scans)
+        self.last_scan_xml_path = temp_xml_path if temp_xml_path else None
         self.results_saved = False  # Mark results as unsaved when scan completes
         self._reset_ui_after_scan(message) # Reset UI to idle state
-        # Explicitly re-evaluate save action state now that path is stored
-        self.save_action.setEnabled(bool(self.last_scan_xml_path and os.path.exists(self.last_scan_xml_path)))
+        # Explicitly re-evaluate save action state
+        # Enable save if we have either an XML file OR scan data from parallel scan
+        has_xml = bool(self.last_scan_xml_path and os.path.exists(self.last_scan_xml_path))
+        has_data = bool(self.current_scan_data)
+        self.save_action.setEnabled(has_xml or has_data)
 
 
     def scan_error_occurred(self, error_message):
@@ -1832,13 +1838,17 @@ class MainWindow(QMainWindow):
     def save_scan_results(self):
         """
         Prompts the user for save options and filename, then saves the scan results.
-        Optionally embeds raw output in the XML file.
+        For regular scans: saves XML file with optional raw output.
+        For parallel scans: saves raw output and JSON data.
 
         Returns:
             bool: True on success, False on failure or cancellation.
         """
         # Check if results are available to save
-        if not self.last_scan_xml_path or not os.path.exists(self.last_scan_xml_path):
+        has_xml = bool(self.last_scan_xml_path and os.path.exists(self.last_scan_xml_path))
+        has_data = bool(self.current_scan_data)
+
+        if not has_xml and not has_data:
             QMessageBox.warning(self, "No Results", "No scan results available to save. Please run a scan first.")
             return False
 
@@ -1866,33 +1876,52 @@ class MainWindow(QMainWindow):
         # Proceed only if a filename was provided (user didn't cancel)
         if filename:
             try:
-                # Read the original XML content
-                with open(self.last_scan_xml_path, 'r', encoding='utf-8') as f:
-                    xml_content = f.read()
+                if has_xml:
+                    # Regular scan: Save XML file with optional raw output
+                    # Read the original XML content
+                    with open(self.last_scan_xml_path, 'r', encoding='utf-8') as f:
+                        xml_content = f.read()
 
-                # If user wants to include raw output, embed it in the XML
-                if include_raw and raw_output:
-                    # Insert raw output as a comment near the end of the XML file (before </nmaprun>)
-                    raw_output_escaped = raw_output.replace('-->', '--&gt;')  # Escape comment terminators
-                    raw_comment = f"\n<!-- NEOZEN_RAW_OUTPUT\n{raw_output_escaped}\nNEOZEN_RAW_OUTPUT -->\n"
+                    # If user wants to include raw output, embed it in the XML
+                    if include_raw and raw_output:
+                        # Insert raw output as a comment near the end of the XML file (before </nmaprun>)
+                        raw_output_escaped = raw_output.replace('-->', '--&gt;')  # Escape comment terminators
+                        raw_comment = f"\n<!-- NEOZEN_RAW_OUTPUT\n{raw_output_escaped}\nNEOZEN_RAW_OUTPUT -->\n"
 
-                    # Insert before closing nmaprun tag
-                    if '</nmaprun>' in xml_content:
-                        xml_content = xml_content.replace('</nmaprun>', f"{raw_comment}</nmaprun>")
-                    else:
-                        # If no closing tag, append at end
-                        xml_content += raw_comment
+                        # Insert before closing nmaprun tag
+                        if '</nmaprun>' in xml_content:
+                            xml_content = xml_content.replace('</nmaprun>', f"{raw_comment}</nmaprun>")
+                        else:
+                            # If no closing tag, append at end
+                            xml_content += raw_comment
 
-                # Write the modified XML to the target file
-                with open(filename, 'w', encoding='utf-8') as f:
-                    f.write(xml_content)
+                    # Write the modified XML to the target file
+                    with open(filename, 'w', encoding='utf-8') as f:
+                        f.write(xml_content)
+
+                else:
+                    # Parallel scan: Save as JSON with raw output
+                    base_filename = os.path.splitext(filename)[0]
+                    json_filename = base_filename + ".json"
+                    txt_filename = base_filename + "_output.txt"
+
+                    # Save parsed data as JSON
+                    with open(json_filename, 'w', encoding='utf-8') as f:
+                        json.dump(self.current_scan_data, f, indent=2, ensure_ascii=False)
+
+                    # Save raw output if requested
+                    if include_raw and raw_output:
+                        with open(txt_filename, 'w', encoding='utf-8') as f:
+                            f.write(raw_output)
 
                 # Save notes if any exist
                 if self.host_notes:
-                    base_filename = os.path.splitext(filename)[0]  # Remove .xml extension
+                    base_filename = os.path.splitext(filename)[0]  # Remove .xml/.json extension
                     self.save_notes_to_file(base_filename)
 
                 status_msg = f"Scan results saved to {filename}"
+                if not has_xml:
+                    status_msg = f"Scan results saved as JSON to {os.path.splitext(filename)[0]}.json"
                 if include_raw and raw_output:
                     status_msg += " (with raw output)"
                 self._current_status_message = status_msg
@@ -1997,15 +2026,25 @@ class MainWindow(QMainWindow):
 
                     # Get OS information from current_scan_data
                     detected_os = ""
-                    if ip_address and ip_address in self.current_scan_data:
-                        host_data = self.current_scan_data[ip_address]
-                        osmatch = host_data.get('osmatch', [])
-                        if osmatch and len(osmatch) > 0:
-                            # Get the highest accuracy OS match
-                            best_match = osmatch[0]
-                            os_name = best_match.get('name', '')
-                            os_accuracy = best_match.get('accuracy', '')
-                            detected_os = f"{os_name} ({os_accuracy}%)" if os_accuracy else os_name
+                    if ip_address:
+                        # Try to find the host data - IP might be in different formats
+                        host_data = None
+                        if ip_address in self.current_scan_data:
+                            host_data = self.current_scan_data[ip_address]
+                        else:
+                            # Try stripping whitespace and checking again
+                            ip_clean = ip_address.strip()
+                            if ip_clean in self.current_scan_data:
+                                host_data = self.current_scan_data[ip_clean]
+
+                        if host_data:
+                            osmatch = host_data.get('osmatch', [])
+                            if osmatch and len(osmatch) > 0:
+                                # Get the highest accuracy OS match
+                                best_match = osmatch[0]
+                                os_name = best_match.get('name', '')
+                                os_accuracy = best_match.get('accuracy', '')
+                                detected_os = f"{os_name} ({os_accuracy}%)" if os_accuracy else os_name
 
                     row_data.append(detected_os)
 
@@ -2055,15 +2094,18 @@ class MainWindow(QMainWindow):
                 return # Stop processing the close event
 
         # 2. If not running (or just stopped), check for unsaved results
-        # Check if last_scan_xml_path exists, points to a real file, AND results haven't been saved yet
-        if should_close and self.last_scan_xml_path and os.path.exists(self.last_scan_xml_path) and not self.results_saved:
+        # Check if we have unsaved results (either XML file or scan data) AND results haven't been saved yet
+        has_xml = bool(self.last_scan_xml_path and os.path.exists(self.last_scan_xml_path))
+        has_data = bool(self.current_scan_data)
+        if should_close and (has_xml or has_data) and not self.results_saved:
             # Create a custom message box for Save/Don't Save/Cancel
             msg_box = QMessageBox(self)
             msg_box.setWindowTitle("Unsaved Scan Results")
             msg_box.setText("The results of the last scan have not been saved.")
             msg_box.setInformativeText("Do you want to save the results before exiting?")
             # Add buttons with specific roles
-            save_button = msg_box.addButton("&Save XML", QMessageBox.ButtonRole.AcceptRole)
+            save_label = "&Save XML" if has_xml else "&Save Results"
+            save_button = msg_box.addButton(save_label, QMessageBox.ButtonRole.AcceptRole)
             discard_button = msg_box.addButton("&Don't Save", QMessageBox.ButtonRole.DestructiveRole)
             cancel_button = msg_box.addButton("Cancel", QMessageBox.ButtonRole.RejectRole)
             msg_box.setDefaultButton(save_button) # Make Save the default
