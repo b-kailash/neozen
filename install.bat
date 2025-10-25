@@ -86,8 +86,8 @@ call venv\Scripts\activate.bat
 REM Upgrade pip
 python -m pip install --upgrade pip --quiet
 
-REM Install NeoZen
-pip install -e . --quiet
+REM Install NeoZen with all dependencies (desktop + web)
+pip install -e ".[all]" --quiet
 
 if %errorlevel% neq 0 (
     echo [ERROR] Installation failed.

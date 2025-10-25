@@ -139,11 +139,11 @@ echo "⬆️  Upgrading pip..."
 echo -e "${BLUE}Running: pip install --upgrade pip${NC}"
 pip install --upgrade pip
 
-# Install NeoZen
+# Install NeoZen with all dependencies (desktop + web)
 echo ""
-echo "📥 Installing NeoZen and dependencies..."
-echo -e "${BLUE}Running: pip install -e .${NC}"
-pip install -e .
+echo "📥 Installing NeoZen and dependencies (desktop + web)..."
+echo -e "${BLUE}Running: pip install -e \".[all]\"${NC}"
+pip install -e ".[all]"
 
 if [ $? -eq 0 ]; then
     echo -e "${GREEN}✓ NeoZen installed successfully!${NC}"
