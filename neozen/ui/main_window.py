@@ -676,6 +676,25 @@ class MainWindow(QMainWindow):
         button_layout.addWidget(self.save_profile_button)
         button_layout.addWidget(self.delete_profile_button)
 
+        # --- Parallel Scanning Controls ---
+        parallel_layout = QHBoxLayout()
+        self.parallel_scan_cb = QCheckBox("Enable Parallel Scanning")
+        self.parallel_scan_cb.setToolTip("Discover live hosts first, then scan them in parallel for faster results")
+        self.parallel_scan_cb.stateChanged.connect(self._on_parallel_scan_changed)
+
+        workers_label = QLabel("Max Workers:")
+        workers_label.setToolTip("Number of parallel scanner threads (1-10)")
+        self.max_workers_spinbox = QSpinBox()
+        self.max_workers_spinbox.setRange(1, 10)
+        self.max_workers_spinbox.setValue(5)
+        self.max_workers_spinbox.setEnabled(False)  # Disabled by default
+        self.max_workers_spinbox.setToolTip("Number of parallel scanner threads")
+
+        parallel_layout.addWidget(self.parallel_scan_cb)
+        parallel_layout.addWidget(workers_label)
+        parallel_layout.addWidget(self.max_workers_spinbox)
+        parallel_layout.addStretch()
+
         # --- Progress Bar ---
         self.progress_bar = QProgressBar()
         self.progress_bar.setVisible(False) # Hidden until scan starts
@@ -778,6 +797,7 @@ class MainWindow(QMainWindow):
         # --- Add widgets to main application layout ---
         main_layout.addWidget(config_widget) # Add the top configuration group
         main_layout.addLayout(button_layout) # Add the button row
+        main_layout.addLayout(parallel_layout) # Add the parallel scanning controls
         main_layout.addWidget(self.progress_bar) # Add the progress bar
         main_layout.addWidget(results_splitter, 1) # Add the results splitter, allow it to stretch
 
@@ -819,6 +839,11 @@ class MainWindow(QMainWindow):
 
 
     # --- Privilege Check ---
+    def _on_parallel_scan_changed(self):
+        """Handle parallel scanning option (enables/disables max workers spinbox)."""
+        is_parallel = self.parallel_scan_cb.isChecked()
+        self.max_workers_spinbox.setEnabled(is_parallel)
+
     def _check_and_warn_privileged_scan(self):
         """
         Checks the current Nmap arguments and OS detection checkbox for flags requiring elevation.
