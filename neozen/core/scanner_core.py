@@ -504,7 +504,8 @@ class ParallelNmapScanner(threading.Thread):
         on_results: Optional[Callable[[Dict[str, Any]], None]] = None,
         on_finished: Optional[Callable[[str, str], None]] = None,
         on_error: Optional[Callable[[str], None]] = None,
-        on_progress: Optional[Callable[[int, int], None]] = None
+        on_progress: Optional[Callable[[int, int], None]] = None,
+        on_host_result: Optional[Callable[[Dict[str, Any]], None]] = None
     ):
         """
         Initialize the parallel scanner with callbacks.
@@ -518,6 +519,7 @@ class ParallelNmapScanner(threading.Thread):
             on_finished: Callback for completion (message, xml_path)
             on_error: Callback for errors
             on_progress: Callback for progress updates (current, total)
+            on_host_result: Callback for individual host results (called as each host completes)
         """
         super().__init__(daemon=True)
         self.target = target
@@ -533,6 +535,7 @@ class ParallelNmapScanner(threading.Thread):
         self._on_finished = on_finished or (lambda x, y: None)
         self._on_error = on_error or (lambda x: None)
         self._on_progress = on_progress or (lambda x, y: None)
+        self._on_host_result = on_host_result or (lambda x: None)
 
     def _discover_live_hosts(self) -> List[str]:
         """
@@ -690,6 +693,8 @@ class ParallelNmapScanner(threading.Thread):
                     host_results = future.result()
                     if host_results:
                         aggregated_results.update(host_results)
+                        # Emit incremental host result
+                        self._on_host_result(host_results)
 
                     completed_count += 1
                     self._on_progress(completed_count, total_hosts)

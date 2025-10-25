@@ -93,6 +93,7 @@ class QtParallelScannerAdapter(QObject):
     scan_finished = pyqtSignal(str, str)  # (status_message, temp_xml_path)
     scan_error = pyqtSignal(str)
     scan_progress = pyqtSignal(int, int)  # (current, total)
+    scan_host_result = pyqtSignal(dict)  # Incremental host result
 
     def __init__(self, target: str, arguments: str, max_workers: int = 5):
         """
@@ -114,7 +115,8 @@ class QtParallelScannerAdapter(QObject):
             on_results=self.scan_results_ready.emit,
             on_finished=self.scan_finished.emit,
             on_error=self.scan_error.emit,
-            on_progress=self.scan_progress.emit
+            on_progress=self.scan_progress.emit,
+            on_host_result=self.scan_host_result.emit
         )
 
     def start(self):

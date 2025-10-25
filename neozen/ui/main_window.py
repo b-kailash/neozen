@@ -5,6 +5,8 @@ import nmap
 import shutil
 from pathlib import Path
 import shlex # Import shlex for safer argument splitting/joining
+from datetime import datetime
+import csv
 
 from PyQt6.QtWidgets import (
     QMainWindow, QApplication, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
@@ -477,6 +479,74 @@ class SaveProfileDialog(QDialog):
         """
         return self.profile_name_input.text().strip()
 
+# --- CSV Export Column Selection Dialog ---
+class CSVExportDialog(QDialog):
+    """
+    Dialog for selecting which columns to export to CSV.
+    """
+    def __init__(self, column_headers, parent=None):
+        """
+        Initialize the CSV export dialog.
+
+        Args:
+            column_headers: List of column header names from the table
+            parent: Parent widget
+        """
+        super().__init__(parent)
+        self.setWindowTitle("Export to CSV")
+        self.setMinimumWidth(400)
+
+        layout = QVBoxLayout(self)
+
+        # Instructions
+        instructions = QLabel("Select columns to export:")
+        layout.addWidget(instructions)
+
+        # Checkboxes for each column
+        self.column_checkboxes = []
+        for header in column_headers:
+            checkbox = QCheckBox(header)
+            checkbox.setChecked(True)  # All columns selected by default
+            self.column_checkboxes.append(checkbox)
+            layout.addWidget(checkbox)
+
+        # Select All / Deselect All buttons
+        button_layout = QHBoxLayout()
+        select_all_btn = QPushButton("Select All")
+        deselect_all_btn = QPushButton("Deselect All")
+        select_all_btn.clicked.connect(self._select_all)
+        deselect_all_btn.clicked.connect(self._deselect_all)
+        button_layout.addWidget(select_all_btn)
+        button_layout.addWidget(deselect_all_btn)
+        layout.addLayout(button_layout)
+
+        # OK and Cancel buttons
+        self.button_box = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        self.button_box.accepted.connect(self.accept)
+        self.button_box.rejected.connect(self.reject)
+        layout.addWidget(self.button_box)
+
+    def _select_all(self):
+        """Select all column checkboxes."""
+        for checkbox in self.column_checkboxes:
+            checkbox.setChecked(True)
+
+    def _deselect_all(self):
+        """Deselect all column checkboxes."""
+        for checkbox in self.column_checkboxes:
+            checkbox.setChecked(False)
+
+    def get_selected_columns(self):
+        """
+        Get indices of selected columns.
+
+        Returns:
+            List of column indices that are selected
+        """
+        return [i for i, checkbox in enumerate(self.column_checkboxes) if checkbox.isChecked()]
+
 # --- Main Window ---
 class MainWindow(QMainWindow):
     """
@@ -534,6 +604,13 @@ class MainWindow(QMainWindow):
         self.save_action.setEnabled(False) # Initially disabled
         self.save_action.triggered.connect(self.save_scan_results)
 
+        # File -> Export to CSV
+        self.export_csv_action = QAction("&Export to CSV...", self)
+        self.export_csv_action.setShortcut("Ctrl+E")
+        self.export_csv_action.setStatusTip("Export device details table to CSV file")
+        self.export_csv_action.setEnabled(False) # Initially disabled
+        self.export_csv_action.triggered.connect(self.export_to_csv)
+
         # File -> Exit
         self.exit_action = QAction("E&xit", self)
         self.exit_action.setShortcut("Ctrl+Q")
@@ -554,6 +631,7 @@ class MainWindow(QMainWindow):
         file_menu = menu_bar.addMenu("&File")
         file_menu.addAction(self.open_action)
         file_menu.addAction(self.save_action)
+        file_menu.addAction(self.export_csv_action)
         file_menu.addSeparator()
         file_menu.addAction(self.exit_action)
 
@@ -719,7 +797,7 @@ class MainWindow(QMainWindow):
         raw_output_layout.addWidget(self.output_area)
         self.tab_widget.addTab(self.raw_output_widget, "Raw Output")
 
-        # Parsed Results Tab (Table View)
+        # Device Details Tab (Table View)
         self.parsed_results_widget = QWidget()
         parsed_results_layout = QVBoxLayout(self.parsed_results_widget)
         parsed_results_layout.setContentsMargins(0, 5, 0, 0)
@@ -743,7 +821,7 @@ class MainWindow(QMainWindow):
         header.setSectionResizeMode(7, QHeaderView.ResizeMode.Stretch) # Version (stretch)
         self.results_table.setSortingEnabled(True) # Allow sorting by column header clicks
         parsed_results_layout.addWidget(self.results_table)
-        self.tab_widget.addTab(self.parsed_results_widget, "Parsed Results")
+        self.tab_widget.addTab(self.parsed_results_widget, "Device Details")
 
         # Add the tab widget to the top part of the splitter
         results_splitter.addWidget(self.tab_widget)
@@ -1198,6 +1276,8 @@ class MainWindow(QMainWindow):
             self.scanner_thread = QtParallelScannerAdapter(target, nmap_args, max_workers)
             # Connect progress signal for parallel scanning
             self.scanner_thread.scan_progress.connect(self.update_scan_progress)
+            # Connect incremental host result signal for live table updates
+            self.scanner_thread.scan_host_result.connect(self.process_host_result)
         else:
             self.scanner_thread = Scanner(target, nmap_args)
 
@@ -1229,8 +1309,10 @@ class MainWindow(QMainWindow):
 
 
     def append_output(self, text):
-        """Appends text to the 'Raw Output' text area and auto-scrolls."""
-        self.output_area.append(text)
+        """Appends text with timestamp to the 'Raw Output' text area and auto-scrolls."""
+        timestamp = datetime.now().strftime("[%H:%M:%S]")
+        timestamped_text = f"{timestamp} {text}"
+        self.output_area.append(timestamped_text)
         # Move scrollbar to the bottom to show the latest output
         self.output_area.verticalScrollBar().setValue(self.output_area.verticalScrollBar().maximum())
 
@@ -1238,6 +1320,75 @@ class MainWindow(QMainWindow):
         """Update status bar with parallel scan progress."""
         self._current_status_message = f"Parallel scan progress: {current}/{total} hosts scanned"
         self._check_and_warn_privileged_scan()
+
+    def process_host_result(self, host_data):
+        """
+        Slot connected to parallel scanner's scan_host_result signal.
+        Adds individual host results to the table incrementally as they complete.
+        """
+        # Merge new host data with current scan data
+        self.current_scan_data.update(host_data)
+        # Add rows for this host to the table
+        self._add_host_to_table(host_data)
+
+    def _add_host_to_table(self, host_data):
+        """
+        Adds table rows for a single host's scan results.
+
+        Args:
+            host_data: Dictionary with single host IP as key and host info as value
+        """
+        self.results_table.setSortingEnabled(False)  # Disable sorting during addition
+
+        for host, data in host_data.items():
+            hostname = data.get('hostname', '')
+            # Format host display (include IP)
+            display_host = f"{hostname} ({host})" if hostname and hostname != host else host
+            # Get MAC address for this host
+            mac_address = data.get('mac', '')
+            vendor = data.get('vendor', '')
+            mac_display = f"{mac_address} ({vendor})" if mac_address and vendor else mac_address
+            protocols = data.get('protocols', {})
+
+            # If no port/protocol info, but host is up, show a single row for the host
+            if not protocols:
+                if data.get('state') == 'up':
+                    row_position = self.results_table.rowCount()
+                    self.results_table.insertRow(row_position)
+                    host_item = QTableWidgetItem(display_host)
+                    host_item.setData(Qt.ItemDataRole.UserRole, host)
+                    self.results_table.setItem(row_position, 0, host_item)
+                    self.results_table.setItem(row_position, 1, QTableWidgetItem(mac_display))
+                    self.results_table.setItem(row_position, 4, QTableWidgetItem(data.get('state', 'unknown')))
+                    self.results_table.setItem(row_position, 5, QTableWidgetItem("(No ports found/reported)"))
+                continue
+
+            # If ports exist, iterate through protocols and ports
+            for proto, ports in protocols.items():
+                for port, port_data in ports.items():
+                    row_position = self.results_table.rowCount()
+                    self.results_table.insertRow(row_position)
+                    # Create table items for each cell
+                    host_item = QTableWidgetItem(display_host)
+                    host_item.setData(Qt.ItemDataRole.UserRole, host)
+                    mac_item = QTableWidgetItem(mac_display)
+                    proto_item = QTableWidgetItem(proto)
+                    port_item = QTableWidgetItem(str(port))
+                    state_item = QTableWidgetItem(port_data.get('state', ''))
+                    service_item = QTableWidgetItem(port_data.get('name', ''))
+                    product_item = QTableWidgetItem(port_data.get('product', ''))
+                    version_item = QTableWidgetItem(port_data.get('version', ''))
+                    # Set items in the current row
+                    self.results_table.setItem(row_position, 0, host_item)
+                    self.results_table.setItem(row_position, 1, mac_item)
+                    self.results_table.setItem(row_position, 2, proto_item)
+                    self.results_table.setItem(row_position, 3, port_item)
+                    self.results_table.setItem(row_position, 4, state_item)
+                    self.results_table.setItem(row_position, 5, service_item)
+                    self.results_table.setItem(row_position, 6, product_item)
+                    self.results_table.setItem(row_position, 7, version_item)
+
+        self.results_table.setSortingEnabled(True)  # Re-enable sorting
 
     def process_scan_results(self, results_data):
         """
@@ -1251,7 +1402,7 @@ class MainWindow(QMainWindow):
 
 
     def display_parsed_results_table(self, results_data):
-        """Populates the 'Parsed Results' table with summarized scan data."""
+        """Populates the 'Device Details' table with summarized scan data."""
         self.results_table.setSortingEnabled(False) # Disable sorting during population
         self.results_table.setRowCount(0) # Clear existing rows
         row_position = 0
@@ -1494,6 +1645,8 @@ class MainWindow(QMainWindow):
         # Save enabled only when not scanning AND results from last scan exist
         self.save_action.setEnabled(not scanning and bool(self.last_scan_xml_path and os.path.exists(self.last_scan_xml_path)))
         self.open_action.setEnabled(not scanning) # Allow opening when idle
+        # Export enabled when not scanning AND table has data
+        self.export_csv_action.setEnabled(not scanning and self.results_table.rowCount() > 0)
 
         # Clear the temporary file path and reset saved flag when starting a new scan
         if scanning:
@@ -1515,6 +1668,7 @@ class MainWindow(QMainWindow):
         Stores the temp XML path and enables the save action.
         """
         self.last_scan_xml_path = temp_xml_path # Store path for potential saving
+        self.results_saved = False  # Mark results as unsaved when scan completes
         self._reset_ui_after_scan(message) # Reset UI to idle state
         # Explicitly re-evaluate save action state now that path is stored
         self.save_action.setEnabled(bool(self.last_scan_xml_path and os.path.exists(self.last_scan_xml_path)))
@@ -1664,6 +1818,7 @@ class MainWindow(QMainWindow):
                 self._check_and_warn_privileged_scan()
                 # Cannot save a loaded file via the temp file mechanism
                 self.last_scan_xml_path = None
+                self.results_saved = True  # Mark as saved since we're loading from a saved file
                 self.save_action.setEnabled(False)
 
             except FileNotFoundError:
@@ -1755,6 +1910,116 @@ class MainWindow(QMainWindow):
             self._current_status_message = "Save cancelled."
             self._check_and_warn_privileged_scan()
             return False # Indicate cancellation
+
+    def export_to_csv(self):
+        """
+        Exports the device details table to a CSV file.
+        Prompts user to select columns and filename.
+        """
+        # Check if there's data to export
+        if self.results_table.rowCount() == 0:
+            QMessageBox.warning(self, "No Data", "No scan results available to export.")
+            return
+
+        # Get column headers
+        column_headers = []
+        for col in range(self.results_table.columnCount()):
+            header_item = self.results_table.horizontalHeaderItem(col)
+            column_headers.append(header_item.text() if header_item else f"Column {col}")
+
+        # Show column selection dialog
+        column_dialog = CSVExportDialog(column_headers, self)
+        if column_dialog.exec() != QDialog.DialogCode.Accepted:
+            self._current_status_message = "Export cancelled."
+            self._check_and_warn_privileged_scan()
+            return
+
+        selected_columns = column_dialog.get_selected_columns()
+
+        # Check if at least one column is selected
+        if not selected_columns:
+            QMessageBox.warning(self, "No Columns Selected", "Please select at least one column to export.")
+            return
+
+        # Open file save dialog
+        suggested_filename = "neozen_scan_export.csv"
+        filename, _ = QFileDialog.getSaveFileName(
+            self, "Export to CSV", suggested_filename,
+            "CSV Files (*.csv);;All Files (*)"
+        )
+
+        if not filename:
+            self._current_status_message = "Export cancelled."
+            self._check_and_warn_privileged_scan()
+            return
+
+        try:
+            # Collect additional columns: IP, MAC, OS
+            # These will be added to the export even if not in the visible table
+            with open(filename, 'w', newline='', encoding='utf-8') as csvfile:
+                writer = csv.writer(csvfile)
+
+                # Write header row with selected columns + IP, MAC, OS
+                header_row = [column_headers[i] for i in selected_columns]
+                # Add additional columns if not already selected
+                additional_headers = []
+                if 0 not in selected_columns:  # Host column
+                    additional_headers.append("IP Address")
+                if 1 not in selected_columns:  # MAC column
+                    additional_headers.append("MAC Address")
+                additional_headers.append("Detected OS")
+
+                writer.writerow(header_row + additional_headers)
+
+                # Write data rows
+                for row in range(self.results_table.rowCount()):
+                    row_data = []
+
+                    # Get selected columns data
+                    for col in selected_columns:
+                        item = self.results_table.item(row, col)
+                        row_data.append(item.text() if item else "")
+
+                    # Add additional data
+                    # Get IP address from Host column's UserRole data
+                    host_item = self.results_table.item(row, 0)
+                    ip_address = ""
+                    if host_item:
+                        ip_address = host_item.data(Qt.ItemDataRole.UserRole) or ""
+
+                    # Get MAC if not already in selected columns
+                    if 0 not in selected_columns:
+                        row_data.append(ip_address)
+
+                    if 1 not in selected_columns:
+                        mac_item = self.results_table.item(row, 1)
+                        row_data.append(mac_item.text() if mac_item else "")
+
+                    # Get OS information from current_scan_data
+                    detected_os = ""
+                    if ip_address and ip_address in self.current_scan_data:
+                        host_data = self.current_scan_data[ip_address]
+                        osmatch = host_data.get('osmatch', [])
+                        if osmatch and len(osmatch) > 0:
+                            # Get the highest accuracy OS match
+                            best_match = osmatch[0]
+                            os_name = best_match.get('name', '')
+                            os_accuracy = best_match.get('accuracy', '')
+                            detected_os = f"{os_name} ({os_accuracy}%)" if os_accuracy else os_name
+
+                    row_data.append(detected_os)
+
+                    writer.writerow(row_data)
+
+            self._current_status_message = f"Exported {self.results_table.rowCount()} rows to {filename}"
+            self._check_and_warn_privileged_scan()
+            QMessageBox.information(self, "Export Successful",
+                                   f"Successfully exported {self.results_table.rowCount()} rows to:\n{filename}")
+
+        except Exception as e:
+            QMessageBox.critical(self, "Export Error", f"Failed to export to CSV:\n{e}")
+            self._current_status_message = f"Export failed: {e}"
+            self._check_and_warn_privileged_scan()
 
     def show_about_dialog(self):
         """Displays a simple About dialog box."""
