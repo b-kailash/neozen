@@ -4,9 +4,26 @@ REM This script sets up a virtual environment and installs NeoZen with all depen
 
 setlocal enabledelayedexpansion
 
+REM Check for Administrator privileges
+net session >nul 2>&1
+if %errorlevel% neq 0 (
+    echo =========================================
+    echo   NeoZen - Modern Nmap GUI Installer
+    echo =========================================
+    echo.
+    echo [ERROR] This script requires administrator privileges.
+    echo.
+    echo Please right-click install.bat and select "Run as administrator"
+    echo.
+    pause
+    exit /b 1
+)
+
 echo =========================================
 echo   NeoZen - Modern Nmap GUI Installer
 echo =========================================
+echo.
+echo [OK] Running with administrator privileges
 echo.
 
 REM Check for Python
