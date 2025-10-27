@@ -21,6 +21,11 @@ WORKDIR /app
 # Copy application files
 COPY --chown=neozen:neozen . .
 
+# Debug: List files to verify they're copied
+RUN echo "=== Contents of /app ===" && ls -la /app && \
+    echo "=== Contents of /app/neozen ===" && ls -la /app/neozen && \
+    echo "=== Contents of /app/neozen/web ===" && ls -la /app/neozen/web
+
 # Install Python dependencies only (not the package itself)
 RUN pip install --no-cache-dir flask>=2.3.0 flask-socketio>=5.3.0 flask-cors>=4.0.0 python-socketio>=5.9.0 python-nmap>=0.7.1 psutil>=5.9.0
 
