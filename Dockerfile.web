@@ -33,5 +33,5 @@ ENV PYTHONPATH=/app
 # Expose web server port
 EXPOSE 8080
 
-# Run web server directly from source
-CMD ["python", "/app/neozen/web/app.py"]
+# Run web server as module (PYTHONPATH is set to /app)
+CMD ["python", "-m", "neozen.web.app"]
