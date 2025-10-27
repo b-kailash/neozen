@@ -32,6 +32,7 @@ scan_lock = threading.Lock()
 profile_manager = ProfileManager()
 scan_results = {}
 scan_output = []
+last_xml_path = None  # Store path to last scan's XML file
 
 
 # --- Web Routes ---
@@ -121,7 +122,9 @@ def start_scan():
             socketio.emit('scan_results', {'results': results})
 
         def on_finished_callback(message, xml_path):
-            """Handle completion: emit SocketIO event"""
+            """Handle completion: store XML path and emit SocketIO event"""
+            global last_xml_path
+            last_xml_path = xml_path
             socketio.emit('scan_finished', {'message': message, 'xml_path': xml_path})
 
         def on_error_callback(error):
@@ -209,6 +212,102 @@ def get_scan_output():
 def get_scan_results():
     """Get current scan results"""
     return jsonify({'results': scan_results})
+
+
+@app.route('/api/scan/download-xml', methods=['GET'])
+def download_xml():
+    """Download the XML file from the last scan"""
+    global last_xml_path
+
+    if not last_xml_path or not os.path.exists(last_xml_path):
+        return jsonify({'error': 'No XML file available'}), 404
+
+    from flask import send_file
+    import time
+
+    # Generate filename with timestamp
+    timestamp = time.strftime('%Y%m%d_%H%M%S')
+    filename = f'neozen_scan_{timestamp}.xml'
+
+    return send_file(
+        last_xml_path,
+        as_attachment=True,
+        download_name=filename,
+        mimetype='application/xml'
+    )
+
+
+@app.route('/api/scan/export-csv', methods=['GET'])
+def export_csv():
+    """Export scan results to CSV"""
+    global scan_results
+
+    if not scan_results or len(scan_results) == 0:
+        return jsonify({'error': 'No scan results available'}), 404
+
+    import csv
+    import io
+    import time
+    from flask import send_file
+
+    # Create CSV in memory
+    output = io.StringIO()
+    writer = csv.writer(output)
+
+    # Write header
+    writer.writerow(['Host', 'MAC Address', 'Protocol', 'Port', 'State', 'Service', 'Product', 'Version'])
+
+    # Track unique rows to avoid duplicates
+    exported_rows = set()
+
+    # Write data
+    for host, host_data in scan_results.items():
+        hostname = host_data.get('hostname', '')
+        display_host = f"{hostname} ({host})" if hostname and hostname != host else host
+        mac_address = host_data.get('mac', '')
+        vendor = host_data.get('vendor', '')
+        mac_display = f"{mac_address} ({vendor})" if mac_address and vendor else mac_address
+        protocols = host_data.get('protocols', {})
+
+        if not protocols:
+            # Host with no ports
+            row = (display_host, mac_display, '', '', host_data.get('state', 'unknown'), '(No ports found)', '', '')
+            if row not in exported_rows:
+                writer.writerow(row)
+                exported_rows.add(row)
+        else:
+            # Host with ports
+            for proto, ports in protocols.items():
+                for port, port_data in ports.items():
+                    row = (
+                        display_host,
+                        mac_display,
+                        proto,
+                        port,
+                        port_data.get('state', ''),
+                        port_data.get('name', ''),
+                        port_data.get('product', ''),
+                        port_data.get('version', '')
+                    )
+                    if row not in exported_rows:
+                        writer.writerow(row)
+                        exported_rows.add(row)
+
+    # Generate filename with timestamp
+    timestamp = time.strftime('%Y%m%d_%H%M%S')
+    filename = f'neozen_scan_export_{timestamp}.csv'
+
+    # Convert to bytes
+    output.seek(0)
+    bytes_output = io.BytesIO(output.getvalue().encode('utf-8'))
+    bytes_output.seek(0)
+
+    return send_file(
+        bytes_output,
+        as_attachment=True,
+        download_name=filename,
+        mimetype='text/csv'
+    )
 
 
 # --- WebSocket Events ---

@@ -20,6 +20,8 @@ const maxWorkersInput = document.getElementById('max-workers');
 const scanBtn = document.getElementById('scan-btn');
 const stopBtn = document.getElementById('stop-btn');
 const saveProfileBtn = document.getElementById('save-profile-btn');
+const downloadXmlBtn = document.getElementById('download-xml-btn');
+const exportCsvBtn = document.getElementById('export-csv-btn');
 const statusDiv = document.getElementById('status');
 const rawOutputDiv = document.getElementById('raw-output');
 const resultsBody = document.getElementById('results-body');
@@ -82,6 +84,10 @@ socket.on('scan_started', (data) => {
     updateUIState();
     updateStatus(`Scan started: ${data.target}`);
     rawOutputDiv.textContent = '';
+    // Clear previous results and disable export buttons
+    resultsBody.innerHTML = '<tr><td colspan="8" class="no-data">Scanning...</td></tr>';
+    downloadXmlBtn.disabled = true;
+    exportCsvBtn.disabled = true;
 });
 
 socket.on('scan_stopped', () => {
@@ -94,6 +100,9 @@ socket.on('scan_finished', (data) => {
     isScanning = false;
     updateUIState();
     updateStatus(data.message);
+    // Enable export buttons after successful scan
+    downloadXmlBtn.disabled = false;
+    exportCsvBtn.disabled = false;
 });
 
 socket.on('scan_progress', (data) => {
@@ -111,6 +120,8 @@ socket.on('scan_error', (data) => {
 scanBtn.addEventListener('click', startScan);
 stopBtn.addEventListener('click', stopScan);
 saveProfileBtn.addEventListener('click', saveProfile);
+downloadXmlBtn.addEventListener('click', downloadXml);
+exportCsvBtn.addEventListener('click', exportCsv);
 
 // Profile selection
 profileSelect.addEventListener('change', loadProfile);
@@ -339,6 +350,14 @@ function displayResults(results) {
 function updateStatus(message, type = 'info') {
     statusDiv.textContent = message;
     statusDiv.style.borderLeftColor = type === 'error' ? '#e74c3c' : '#667eea';
+}
+
+function downloadXml() {
+    window.location.href = `${API_BASE}/api/scan/download-xml`;
+}
+
+function exportCsv() {
+    window.location.href = `${API_BASE}/api/scan/export-csv`;
 }
 
 function updateUIState() {

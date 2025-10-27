@@ -209,6 +209,13 @@ header h1 {
     color: #777;
 }
 
+/* Export Buttons */
+.export-buttons {
+    margin-bottom: 15px;
+    display: flex;
+    gap: 10px;
+}
+
 /* Results Table */
 #results-container {
     overflow-x: auto;
