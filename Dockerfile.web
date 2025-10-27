@@ -10,10 +10,15 @@ LABEL description="Modern Nmap Web GUI"
 RUN apt-get update && apt-get install -y --no-install-recommends \
     nmap \
     curl \
+    sudo \
     && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user
 RUN useradd -m -u 1000 neozen
+
+# Allow neozen user to run nmap as root without password (required for OS detection, SYN scans, etc.)
+RUN echo "neozen ALL=(root) NOPASSWD: /usr/bin/nmap" > /etc/sudoers.d/neozen && \
+    chmod 0440 /etc/sudoers.d/neozen
 
 # Set working directory
 WORKDIR /app

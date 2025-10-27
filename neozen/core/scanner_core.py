@@ -96,11 +96,23 @@ class NmapScanner(threading.Thread):
         the target, and ensures necessary arguments like XML output to a
         temporary file (`-oX <tempfile>`) and verbosity (`-v`) are included.
 
+        On Linux systems, prepends 'sudo' if running as non-root user to allow
+        privileged scans (OS detection, SYN scans, etc.).
+
         Returns:
             list: A list of strings representing the command and its arguments,
                   ready for subprocess.Popen. Returns None if temp file creation fails.
         """
         nmap_path = "nmap"
+
+        # On Linux, use sudo if not running as root (to allow privileged scans)
+        use_sudo = False
+        if platform.system() != "Windows":
+            try:
+                use_sudo = os.geteuid() != 0  # Check if not root
+            except AttributeError:
+                # os.geteuid() not available (shouldn't happen on Linux, but just in case)
+                pass
 
         # Split base arguments safely using shlex
         if platform.system() == "Windows":
@@ -116,7 +128,10 @@ class NmapScanner(threading.Thread):
                 args_list = self.base_arguments.split()
 
         # Construct the initial command list
-        command = [nmap_path]
+        if use_sudo:
+            command = ["sudo", nmap_path]
+        else:
+            command = [nmap_path]
         command.extend(filter(None, args_list))  # Filter out empty strings
         command.append(self.target)
 
