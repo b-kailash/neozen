@@ -144,10 +144,15 @@ class NmapScanner(threading.Thread):
             self.temp_xml_file_path = temp_file.name
             temp_file.close()  # Close handle so Nmap can write to it
 
-            # If using sudo, make the file writable by root (chmod 666)
-            # This allows sudo nmap to write to the temp file created by non-root user
+            # If using sudo, change ownership to root and make writable
+            # This allows sudo nmap to fully control the temp file (delete, recreate, write)
             if use_sudo:
-                os.chmod(self.temp_xml_file_path, 0o666)
+                try:
+                    # Use sudo chown to change ownership to root:root
+                    subprocess.run(['sudo', 'chown', 'root:root', self.temp_xml_file_path],
+                                   check=True, capture_output=True)
+                except Exception as chown_error:
+                    self._on_output(f"[Warning] Failed to change temp file ownership: {chown_error}")
         except Exception as e:
             self._on_error(f"Failed to create temporary file for XML output: {e}")
             return None  # Indicate error

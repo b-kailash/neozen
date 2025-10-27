@@ -19,8 +19,10 @@ RUN useradd -m -u 1000 neozen
 # Fix hostname resolution for sudo (prevents "unable to resolve host" warning)
 RUN echo "127.0.0.1 neozen-web" >> /etc/hosts
 
-# Allow neozen user to run nmap as root without password (required for OS detection, SYN scans, etc.)
-RUN echo "neozen ALL=(root) NOPASSWD: /usr/bin/nmap" > /etc/sudoers.d/neozen && \
+# Allow neozen user to run nmap and chown as root without password
+# nmap: required for OS detection, SYN scans, etc.
+# chown: required to change temp file ownership so nmap can write to it
+RUN echo "neozen ALL=(root) NOPASSWD: /usr/bin/nmap, /usr/bin/chown" > /etc/sudoers.d/neozen && \
     chmod 0440 /etc/sudoers.d/neozen
 
 # Set working directory
