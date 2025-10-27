@@ -70,6 +70,9 @@ socket.on('scan_output', (data) => {
 });
 
 socket.on('scan_results', (data) => {
+    console.log('Received scan_results event:', data);
+    console.log('Results object:', data.results);
+    console.log('Number of hosts:', Object.keys(data.results || {}).length);
     displayResults(data.results);
     switchTab('results');
 });
@@ -350,6 +353,181 @@ function updateUIState() {
     // Max workers input enabled only when not scanning AND parallel scan is checked
     maxWorkersInput.disabled = isScanning || !parallelScanCheckbox.checked;
     saveProfileBtn.disabled = isScanning;
+}
+
+// Visual Scan Builder Modal
+const visualBuilderBtn = document.getElementById('visual-builder-btn');
+const scanBuilderModal = document.getElementById('scan-builder-modal');
+const modalCloseBtn = document.getElementById('modal-close-btn');
+const modalCancelBtn = document.getElementById('modal-cancel-btn');
+const modalApplyBtn = document.getElementById('modal-apply-btn');
+const builderCommandPreview = document.getElementById('builder-command-preview');
+
+// Modal control buttons
+visualBuilderBtn.addEventListener('click', openScanBuilder);
+modalCloseBtn.addEventListener('click', closeScanBuilder);
+modalCancelBtn.addEventListener('click', closeScanBuilder);
+modalApplyBtn.addEventListener('click', applyScanBuilderSettings);
+
+// Close modal on background click
+scanBuilderModal.addEventListener('click', (e) => {
+    if (e.target === scanBuilderModal) {
+        closeScanBuilder();
+    }
+});
+
+// Builder option change listeners
+document.querySelectorAll('#scan-builder-modal input').forEach(input => {
+    input.addEventListener('change', updateBuilderPreview);
+});
+
+// Aggressive scan handling
+document.getElementById('builder-aggressive').addEventListener('change', function() {
+    const isAggressive = this.checked;
+    document.getElementById('builder-os-detection').disabled = isAggressive;
+    document.getElementById('builder-version-detection').disabled = isAggressive;
+    document.getElementById('builder-script-scan').disabled = isAggressive;
+    if (isAggressive) {
+        document.getElementById('builder-os-detection').checked = false;
+        document.getElementById('builder-version-detection').checked = false;
+        document.getElementById('builder-script-scan').checked = false;
+    }
+    updateBuilderPreview();
+});
+
+// Parallel scan handling
+document.getElementById('builder-parallel').addEventListener('change', function() {
+    document.getElementById('builder-max-workers').disabled = !this.checked;
+});
+
+// Very verbose handling
+document.getElementById('builder-very-verbose').addEventListener('change', function() {
+    if (this.checked) {
+        document.getElementById('builder-verbose').checked = false;
+    }
+    updateBuilderPreview();
+});
+
+// Ping scan handling (disable port options)
+document.querySelectorAll('input[name="scan-technique"]').forEach(radio => {
+    radio.addEventListener('change', function() {
+        const isPingScan = this.value === 'sn' && this.checked;
+        document.querySelectorAll('input[name="port-spec"]').forEach(portRadio => {
+            portRadio.disabled = isPingScan;
+            if (isPingScan) portRadio.checked = false;
+        });
+        updateBuilderPreview();
+    });
+});
+
+function openScanBuilder() {
+    scanBuilderModal.classList.add('show');
+    updateBuilderPreview();
+}
+
+function closeScanBuilder() {
+    scanBuilderModal.classList.remove('show');
+}
+
+function updateBuilderPreview() {
+    const args = [];
+
+    // Scan technique
+    const scanTech = document.querySelector('input[name="scan-technique"]:checked');
+    if (scanTech) {
+        args.push(`-${scanTech.value}`);
+    }
+
+    // Port specification
+    const portSpec = document.querySelector('input[name="port-spec"]:checked');
+    if (portSpec) {
+        args.push(`-${portSpec.value}`);
+    }
+
+    // Timing
+    const timing = document.querySelector('input[name="timing"]:checked');
+    if (timing) {
+        args.push(`-${timing.value}`);
+    }
+
+    // Detection & Enumeration
+    if (document.getElementById('builder-aggressive').checked) {
+        args.push('-A');
+    } else {
+        if (document.getElementById('builder-os-detection').checked) args.push('-O');
+        if (document.getElementById('builder-version-detection').checked) args.push('-sV');
+        if (document.getElementById('builder-script-scan').checked) args.push('-sC');
+    }
+
+    // Other options
+    if (document.getElementById('builder-very-verbose').checked) {
+        args.push('-vv');
+    } else if (document.getElementById('builder-verbose').checked) {
+        args.push('-v');
+    }
+
+    if (document.getElementById('builder-reason').checked) args.push('--reason');
+    if (document.getElementById('builder-no-dns').checked) args.push('-n');
+
+    // Build command preview
+    const command = 'nmap ' + args.join(' ') + ' <target>';
+    builderCommandPreview.textContent = command;
+}
+
+function applyScanBuilderSettings() {
+    const args = [];
+
+    // Scan technique
+    const scanTech = document.querySelector('input[name="scan-technique"]:checked');
+    if (scanTech) {
+        args.push(`-${scanTech.value}`);
+    }
+
+    // Port specification
+    const portSpec = document.querySelector('input[name="port-spec"]:checked');
+    if (portSpec) {
+        args.push(`-${portSpec.value}`);
+    }
+
+    // Timing
+    const timing = document.querySelector('input[name="timing"]:checked');
+    if (timing) {
+        args.push(`-${timing.value}`);
+    }
+
+    // Detection & Enumeration
+    if (document.getElementById('builder-aggressive').checked) {
+        args.push('-A');
+    } else {
+        if (document.getElementById('builder-os-detection').checked) args.push('-O');
+        if (document.getElementById('builder-version-detection').checked) args.push('-sV');
+        if (document.getElementById('builder-script-scan').checked) args.push('-sC');
+    }
+
+    // Other options
+    if (document.getElementById('builder-very-verbose').checked) {
+        args.push('-vv');
+    } else if (document.getElementById('builder-verbose').checked) {
+        args.push('-v');
+    }
+
+    if (document.getElementById('builder-reason').checked) args.push('--reason');
+    if (document.getElementById('builder-no-dns').checked) args.push('-n');
+
+    // Apply to main form
+    scanTypeSelect.value = 'custom';
+    customArgumentsGroup.style.display = 'block';
+    argumentsInput.value = args.join(' ');
+
+    // Apply parallel scanning settings
+    const parallelEnabled = document.getElementById('builder-parallel').checked;
+    const maxWorkers = parseInt(document.getElementById('builder-max-workers').value);
+    parallelScanCheckbox.checked = parallelEnabled;
+    maxWorkersInput.value = maxWorkers;
+    maxWorkersInput.disabled = !parallelEnabled;
+
+    // Close modal
+    closeScanBuilder();
 }
 
 // Initialize

@@ -45,6 +45,7 @@
                     <option value="-sU">UDP scan (-sU)</option>
                     <option value="custom">Custom Arguments...</option>
                 </select>
+                <button id="visual-builder-btn" class="btn btn-secondary" style="margin-top: 10px;">Visual Scan Builder</button>
             </div>
 
             <div class="form-group" id="custom-arguments-group" style="display: none;">
@@ -125,6 +126,132 @@
         <footer>
             <p>NeoZen - Modern Nmap GUI | <span id="connection-status">●</span> <span id="connection-text">Connecting...</span></p>
         </footer>
+    </div>
+
+    <!-- Visual Scan Builder Modal -->
+    <div id="scan-builder-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Visual Scan Builder</h2>
+                <button class="modal-close" id="modal-close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <!-- Scan Techniques -->
+                <div class="option-group">
+                    <h3>Scan Technique</h3>
+                    <div class="option-item">
+                        <label><input type="radio" name="scan-technique" value="sS"> TCP SYN Scan (-sS) <span class="option-desc">Stealth scan, requires privileges</span></label>
+                    </div>
+                    <div class="option-item">
+                        <label><input type="radio" name="scan-technique" value="sT"> TCP Connect Scan (-sT) <span class="option-desc">Full TCP connection, no privileges</span></label>
+                    </div>
+                    <div class="option-item">
+                        <label><input type="radio" name="scan-technique" value="sU"> UDP Scan (-sU) <span class="option-desc">Scan UDP ports, requires privileges</span></label>
+                    </div>
+                    <div class="option-item">
+                        <label><input type="radio" name="scan-technique" value="sA"> TCP ACK Scan (-sA) <span class="option-desc">Map firewall rulesets</span></label>
+                    </div>
+                    <div class="option-item">
+                        <label><input type="radio" name="scan-technique" value="sN"> TCP Null Scan (-sN) <span class="option-desc">No flags set</span></label>
+                    </div>
+                    <div class="option-item">
+                        <label><input type="radio" name="scan-technique" value="sF"> TCP FIN Scan (-sF) <span class="option-desc">FIN flag only</span></label>
+                    </div>
+                    <div class="option-item">
+                        <label><input type="radio" name="scan-technique" value="sX"> TCP Xmas Scan (-sX) <span class="option-desc">FIN, PSH, URG flags</span></label>
+                    </div>
+                    <div class="option-item">
+                        <label><input type="radio" name="scan-technique" value="sn"> Ping Scan (-sn) <span class="option-desc">Host discovery only</span></label>
+                    </div>
+                </div>
+
+                <!-- Port Specification -->
+                <div class="option-group">
+                    <h3>Port Specification</h3>
+                    <div class="option-item">
+                        <label><input type="radio" name="port-spec" value="F"> Fast Scan (-F) <span class="option-desc">Scan fewer ports (top 100)</span></label>
+                    </div>
+                    <div class="option-item">
+                        <label><input type="radio" name="port-spec" value="p-"> All Ports (-p-) <span class="option-desc">Scan all 65535 ports</span></label>
+                    </div>
+                    <div class="option-item">
+                        <label><input type="radio" name="port-spec" value="p 1-1000"> Top Ports (-p 1-1000) <span class="option-desc">Scan ports 1-1000</span></label>
+                    </div>
+                </div>
+
+                <!-- Timing Template -->
+                <div class="option-group">
+                    <h3>Timing Template</h3>
+                    <div class="option-item">
+                        <label><input type="radio" name="timing" value="T0"> Paranoid (-T0) <span class="option-desc">Very slow, for IDS evasion</span></label>
+                    </div>
+                    <div class="option-item">
+                        <label><input type="radio" name="timing" value="T1"> Sneaky (-T1) <span class="option-desc">Slow, for IDS evasion</span></label>
+                    </div>
+                    <div class="option-item">
+                        <label><input type="radio" name="timing" value="T2"> Polite (-T2) <span class="option-desc">Slower, less bandwidth</span></label>
+                    </div>
+                    <div class="option-item">
+                        <label><input type="radio" name="timing" value="T3"> Normal (-T3) <span class="option-desc">Default timing</span></label>
+                    </div>
+                    <div class="option-item">
+                        <label><input type="radio" name="timing" value="T4"> Aggressive (-T4) <span class="option-desc">Faster, assumes fast network</span></label>
+                    </div>
+                    <div class="option-item">
+                        <label><input type="radio" name="timing" value="T5"> Insane (-T5) <span class="option-desc">Very fast, may sacrifice accuracy</span></label>
+                    </div>
+                </div>
+
+                <!-- Detection & Enumeration -->
+                <div class="option-group">
+                    <h3>Detection & Enumeration</h3>
+                    <div class="option-item">
+                        <label><input type="checkbox" id="builder-os-detection"> OS Detection (-O) <span class="option-desc">Requires privileges</span></label>
+                    </div>
+                    <div class="option-item">
+                        <label><input type="checkbox" id="builder-version-detection"> Version Detection (-sV) <span class="option-desc">Probe service versions</span></label>
+                    </div>
+                    <div class="option-item">
+                        <label><input type="checkbox" id="builder-script-scan"> Default Scripts (-sC) <span class="option-desc">Run default NSE scripts</span></label>
+                    </div>
+                    <div class="option-item">
+                        <label><input type="checkbox" id="builder-aggressive"> Aggressive Scan (-A) <span class="option-desc">OS detection, version, scripts, traceroute</span></label>
+                    </div>
+                </div>
+
+                <!-- Other Options -->
+                <div class="option-group">
+                    <h3>Other Options</h3>
+                    <div class="option-item">
+                        <label><input type="checkbox" id="builder-verbose"> Verbose Output (-v)</label>
+                    </div>
+                    <div class="option-item">
+                        <label><input type="checkbox" id="builder-very-verbose"> Very Verbose (-vv)</label>
+                    </div>
+                    <div class="option-item">
+                        <label><input type="checkbox" id="builder-reason"> Show Reason (--reason)</label>
+                    </div>
+                    <div class="option-item">
+                        <label><input type="checkbox" id="builder-no-dns"> No DNS Resolution (-n)</label>
+                    </div>
+                    <div class="option-item">
+                        <label><input type="checkbox" id="builder-parallel"> Enable Parallel Scanning <span class="option-desc">Faster for network ranges</span></label>
+                    </div>
+                    <div class="worker-control">
+                        <label for="builder-max-workers">Max Workers:</label>
+                        <input type="number" id="builder-max-workers" min="1" max="10" value="5" disabled>
+                    </div>
+                </div>
+
+                <!-- Command Preview -->
+                <label id="command-preview-label">Command Preview:</label>
+                <div id="builder-command-preview">nmap &lt;target&gt;</div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="modal-cancel-btn">Cancel</button>
+                <button class="btn btn-primary" id="modal-apply-btn">Apply Settings</button>
+            </div>
+        </div>
     </div>
 
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
