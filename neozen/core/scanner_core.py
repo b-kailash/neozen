@@ -236,7 +236,9 @@ class NmapScanner(threading.Thread):
                     self._on_output("Nmap process finished successfully. Reading & parsing results file...")
 
                     # If we used sudo, change ownership back to current user so we can read the file
-                    if use_sudo and local_temp_xml_path and os.path.exists(local_temp_xml_path):
+                    # Check if sudo was used by looking at the command
+                    used_sudo = len(command) > 0 and command[0] == 'sudo'
+                    if used_sudo and local_temp_xml_path and os.path.exists(local_temp_xml_path):
                         try:
                             import pwd
                             username = pwd.getpwuid(os.getuid()).pw_name
