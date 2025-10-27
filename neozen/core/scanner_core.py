@@ -235,6 +235,17 @@ class NmapScanner(threading.Thread):
                 if return_code == 0:
                     self._on_output("Nmap process finished successfully. Reading & parsing results file...")
 
+                    # If we used sudo, change ownership back to current user so we can read the file
+                    if use_sudo and local_temp_xml_path and os.path.exists(local_temp_xml_path):
+                        try:
+                            import pwd
+                            username = pwd.getpwuid(os.getuid()).pw_name
+                            subprocess.run(['sudo', 'chown', f'{username}:{username}', local_temp_xml_path],
+                                          check=True, capture_output=True)
+                            self._on_output(f"[Debug] Changed XML file ownership back to {username}")
+                        except Exception as chown_err:
+                            self._on_output(f"[Warning] Failed to change XML file ownership back: {chown_err}")
+
                     # --- Read the Temporary XML File ---
                     full_xml_output = ""
                     if local_temp_xml_path and os.path.exists(local_temp_xml_path):

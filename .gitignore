@@ -34,7 +34,6 @@ MANIFEST
 *.spec~
 
 # Built executables (keep in project directory but ignore in git)
-/neozen
 /neozen.exe
 /NeoZen.app/
 
