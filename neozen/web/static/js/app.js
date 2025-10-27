@@ -10,6 +10,8 @@ let isScanning = false;
 // DOM Elements
 const targetInput = document.getElementById('target');
 const profileSelect = document.getElementById('profile');
+const scanTypeSelect = document.getElementById('scan-type');
+const customArgumentsGroup = document.getElementById('custom-arguments-group');
 const argumentsInput = document.getElementById('arguments');
 const osDetectionCheckbox = document.getElementById('os-detection');
 const serviceDetectionCheckbox = document.getElementById('service-detection');
@@ -110,6 +112,16 @@ saveProfileBtn.addEventListener('click', saveProfile);
 // Profile selection
 profileSelect.addEventListener('change', loadProfile);
 
+// Scan type selection
+scanTypeSelect.addEventListener('change', () => {
+    const scanType = scanTypeSelect.value;
+    if (scanType === 'custom') {
+        customArgumentsGroup.style.display = 'block';
+    } else {
+        customArgumentsGroup.style.display = 'none';
+    }
+});
+
 // Checkbox handlers
 osDetectionCheckbox.addEventListener('change', updateArguments);
 serviceDetectionCheckbox.addEventListener('change', updateArguments);
@@ -164,15 +176,24 @@ async function startScan() {
         return;
     }
 
-    // Build arguments
-    let args = argumentsInput.value.trim();
+    // Build arguments from scan type or custom input
+    let args = '';
+    const scanType = scanTypeSelect.value;
 
-    // Add OS detection if checked and not already present
+    if (scanType === 'custom') {
+        // Use custom arguments
+        args = argumentsInput.value.trim();
+    } else {
+        // Use predefined scan type
+        args = scanType;
+    }
+
+    // Add OS detection if checked and not already present (unless using scan type that includes -A)
     if (osDetectionCheckbox.checked && !args.includes('-O') && !args.includes('-A')) {
         args += ' -O';
     }
 
-    // Add service detection if checked and not already present
+    // Add service detection if checked and not already present (unless using scan type that includes -A)
     if (serviceDetectionCheckbox.checked && !args.includes('-sV') && !args.includes('-A')) {
         args += ' -sV';
     }

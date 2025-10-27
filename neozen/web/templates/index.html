@@ -32,7 +32,23 @@
             </div>
 
             <div class="form-group">
-                <label for="arguments">Nmap Arguments:</label>
+                <label for="scan-type">Scan Type:</label>
+                <select id="scan-type">
+                    <option value="-T4 -A -v">Intense scan (-T4 -A -v)</option>
+                    <option value="-T4 -A -sU -v">Intense scan plus UDP (-T4 -A -sU -v)</option>
+                    <option value="-p 1-65535 -T4 -A -v">Intense scan, all TCP ports (-p 1-65535 -T4 -A -v)</option>
+                    <option value="-sn">Ping scan (-sn)</option>
+                    <option value="-T4 -F">Quick scan (-T4 -F)</option>
+                    <option value="">Regular scan (Default Nmap)</option>
+                    <option value="-sS">TCP SYN scan (-sS)</option>
+                    <option value="-sT">TCP Connect scan (-sT)</option>
+                    <option value="-sU">UDP scan (-sU)</option>
+                    <option value="custom">Custom Arguments...</option>
+                </select>
+            </div>
+
+            <div class="form-group" id="custom-arguments-group" style="display: none;">
+                <label for="arguments">Custom Nmap Arguments:</label>
                 <input type="text" id="arguments" placeholder="e.g., -sV -O -T4" />
             </div>
 
