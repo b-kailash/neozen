@@ -802,8 +802,8 @@ class MainWindow(QMainWindow):
         parsed_results_layout = QVBoxLayout(self.parsed_results_widget)
         parsed_results_layout.setContentsMargins(0, 5, 0, 0)
         self.results_table = QTableWidget()
-        self.results_table.setColumnCount(8)
-        self.results_table.setHorizontalHeaderLabels(["Host", "MAC Address", "Proto", "Port", "State", "Service", "Product", "Version"])
+        self.results_table.setColumnCount(3)
+        self.results_table.setHorizontalHeaderLabels(["Host IP", "Host MAC Address", "Detected OS"])
         self.results_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers) # Make table read-only
         self.results_table.setAlternatingRowColors(True) # Improve readability
         self.results_table.verticalHeader().setVisible(False) # Hide default row numbers
@@ -834,11 +834,11 @@ class MainWindow(QMainWindow):
         # Create a vertical splitter for Host Details and Notes
         details_splitter = QSplitter(Qt.Orientation.Vertical)
 
-        # Host Details section (top)
+        # Device Details section (top)
         host_details_widget = QWidget()
         host_details_layout = QVBoxLayout(host_details_widget)
         host_details_layout.setContentsMargins(0, 0, 0, 0)
-        details_label = QLabel("Host Details:")
+        details_label = QLabel("Device Details:")
         self.host_details_area = QTextEdit()
         self.host_details_area.setReadOnly(True)
         self.host_details_area.setFont(monospace_font) # Use consistent monospace font
@@ -1402,7 +1402,7 @@ class MainWindow(QMainWindow):
 
 
     def display_parsed_results_table(self, results_data):
-        """Populates the 'Device Details' table with summarized scan data."""
+        """Populates the 'Device List' table with summarized scan data."""
         self.results_table.setSortingEnabled(False) # Disable sorting during population
         self.results_table.setRowCount(0) # Clear existing rows
         row_position = 0
@@ -1415,46 +1415,31 @@ class MainWindow(QMainWindow):
             mac_address = host_data.get('mac', '')
             vendor = host_data.get('vendor', '')
             mac_display = f"{mac_address} ({vendor})" if mac_address and vendor else mac_address
-            protocols = host_data.get('protocols', {})
 
-            # If no port/protocol info, but host is up, show a single row for the host
-            if not protocols:
-                if host_data.get('state') == 'up':
-                     self.results_table.insertRow(row_position)
-                     host_item = QTableWidgetItem(display_host)
-                     # Store the actual IP address in the item's data for later retrieval
-                     host_item.setData(Qt.ItemDataRole.UserRole, host)
-                     self.results_table.setItem(row_position, 0, host_item) # Host column
-                     self.results_table.setItem(row_position, 1, QTableWidgetItem(mac_display)) # MAC column
-                     self.results_table.setItem(row_position, 4, QTableWidgetItem(host_data.get('state', 'unknown'))) # State column
-                     self.results_table.setItem(row_position, 5, QTableWidgetItem("(No ports found/reported)")) # Service column
-                     row_position += 1
-                continue # Skip hosts with no protocols if not 'up'
+            # Get best OS match
+            osmatches = host_data.get('osmatch', [])
+            detected_os = 'Unknown'
+            if osmatches:
+                # Sort by accuracy and get the best match
+                sorted_matches = sorted(osmatches, key=lambda x: int(x.get('accuracy', '0')), reverse=True)
+                detected_os = sorted_matches[0].get('name', 'Unknown')
+                accuracy = sorted_matches[0].get('accuracy', '')
+                if accuracy:
+                    detected_os += f" ({accuracy}%)"
 
-            # If ports exist, iterate through protocols and ports
-            for proto, ports in protocols.items():
-                for port, port_data in ports.items():
-                    self.results_table.insertRow(row_position)
-                    # Create table items for each cell
-                    host_item = QTableWidgetItem(display_host)
-                    host_item.setData(Qt.ItemDataRole.UserRole, host) # Store IP
-                    mac_item = QTableWidgetItem(mac_display)
-                    proto_item = QTableWidgetItem(proto)
-                    port_item = QTableWidgetItem(str(port)) # Port must be string
-                    state_item = QTableWidgetItem(port_data.get('state', ''))
-                    service_item = QTableWidgetItem(port_data.get('name', ''))
-                    product_item = QTableWidgetItem(port_data.get('product', ''))
-                    version_item = QTableWidgetItem(port_data.get('version', ''))
-                    # Set items in the current row
-                    self.results_table.setItem(row_position, 0, host_item)
-                    self.results_table.setItem(row_position, 1, mac_item)
-                    self.results_table.setItem(row_position, 2, proto_item)
-                    self.results_table.setItem(row_position, 3, port_item)
-                    self.results_table.setItem(row_position, 4, state_item)
-                    self.results_table.setItem(row_position, 5, service_item)
-                    self.results_table.setItem(row_position, 6, product_item)
-                    self.results_table.setItem(row_position, 7, version_item)
-                    row_position += 1
+            # Add one row per device
+            self.results_table.insertRow(row_position)
+            host_item = QTableWidgetItem(display_host)
+            # Store the actual IP address in the item's data for later retrieval
+            host_item.setData(Qt.ItemDataRole.UserRole, host)
+            mac_item = QTableWidgetItem(mac_display)
+            os_item = QTableWidgetItem(detected_os)
+
+            # Set items in the current row
+            self.results_table.setItem(row_position, 0, host_item) # Host IP column
+            self.results_table.setItem(row_position, 1, mac_item) # MAC column
+            self.results_table.setItem(row_position, 2, os_item) # OS column
+            row_position += 1
 
         self.results_table.setSortingEnabled(True) # Re-enable sorting
 
@@ -1462,7 +1447,7 @@ class MainWindow(QMainWindow):
     def display_host_details(self):
         """
         Slot connected to table selection changes. Displays detailed information
-        (MAC, OS, Ports, Scripts) for the selected host in the Host Details area.
+        (MAC, OS, Ports, Scripts) for the selected device in the Device Details area.
         """
         selected_items = self.results_table.selectedItems()
         self.host_details_area.clear() # Clear previous details

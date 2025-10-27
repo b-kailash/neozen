@@ -216,17 +216,17 @@ header h1 {
     gap: 10px;
 }
 
-/* Results Table */
-#results-container {
+/* Device List Table */
+#devices-container {
     overflow-x: auto;
 }
 
-#results-table {
+#devices-table {
     width: 100%;
     border-collapse: collapse;
 }
 
-#results-table th {
+#devices-table th {
     background: #667eea;
     color: white;
     padding: 12px;
@@ -234,13 +234,116 @@ header h1 {
     font-weight: 600;
 }
 
-#results-table td {
+#devices-table td {
     padding: 12px;
     border-bottom: 1px solid #e0e0e0;
 }
 
-#results-table tbody tr:hover {
+#devices-table tbody tr {
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+#devices-table tbody tr:hover {
+    background: #f0f2ff;
+}
+
+#devices-table tbody tr.selected {
+    background: #e0e7ff;
+}
+
+/* Device Details */
+#device-details-container {
+    padding: 20px;
+}
+
+#device-details-header {
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 2px solid #667eea;
+}
+
+#device-details-title {
+    color: #667eea;
+    margin: 0;
+}
+
+#device-details-content {
+    display: flex;
+    flex-direction: column;
+    gap: 25px;
+}
+
+.details-section {
     background: #f8f9fa;
+    padding: 20px;
+    border-radius: 8px;
+    border-left: 4px solid #667eea;
+}
+
+.details-section h4 {
+    margin: 0 0 15px 0;
+    color: #667eea;
+    font-size: 1.1em;
+}
+
+#device-basic-info {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 10px 20px;
+    font-size: 0.95em;
+}
+
+#device-basic-info .info-label {
+    font-weight: 600;
+    color: #555;
+}
+
+#device-basic-info .info-value {
+    color: #333;
+}
+
+/* Ports Table */
+#ports-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+}
+
+#ports-table th {
+    background: #667eea;
+    color: white;
+    padding: 10px;
+    text-align: left;
+    font-weight: 600;
+    font-size: 0.9em;
+}
+
+#ports-table td {
+    padding: 10px;
+    border-bottom: 1px solid #e0e0e0;
+    font-size: 0.9em;
+}
+
+#ports-table tbody tr:hover {
+    background: #f8f9fa;
+}
+
+/* Notes Input */
+#device-notes-input {
+    width: 100%;
+    padding: 12px;
+    border: 2px solid #e0e0e0;
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 1em;
+    resize: vertical;
+    transition: border-color 0.3s;
+}
+
+#device-notes-input:focus {
+    outline: none;
+    border-color: #667eea;
 }
 
 .no-data {

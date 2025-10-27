@@ -88,7 +88,8 @@
         <section class="results-section">
             <div class="tabs">
                 <button class="tab-btn active" data-tab="output">Raw Output</button>
-                <button class="tab-btn" data-tab="results">Parsed Results</button>
+                <button class="tab-btn" data-tab="devices">Device List</button>
+                <button class="tab-btn" data-tab="details">Device Details</button>
             </div>
 
             <!-- Raw Output Tab -->
@@ -96,32 +97,67 @@
                 <div id="raw-output" class="output-box"></div>
             </div>
 
-            <!-- Parsed Results Tab -->
-            <div id="results-tab" class="tab-content">
+            <!-- Device List Tab -->
+            <div id="devices-tab" class="tab-content">
                 <div class="export-buttons">
                     <button id="download-xml-btn" class="btn btn-secondary" disabled>Download XML</button>
                     <button id="export-csv-btn" class="btn btn-secondary" disabled>Export to CSV</button>
                 </div>
-                <div id="results-container">
-                    <table id="results-table">
+                <div id="devices-container">
+                    <table id="devices-table">
                         <thead>
                             <tr>
-                                <th>Host</th>
-                                <th>MAC Address</th>
-                                <th>Protocol</th>
-                                <th>Port</th>
-                                <th>State</th>
-                                <th>Service</th>
-                                <th>Product</th>
-                                <th>Version</th>
+                                <th>Host IP</th>
+                                <th>Host MAC Address</th>
+                                <th>Detected OS</th>
                             </tr>
                         </thead>
-                        <tbody id="results-body">
+                        <tbody id="devices-body">
                             <tr>
-                                <td colspan="8" class="no-data">No scan results yet</td>
+                                <td colspan="3" class="no-data">No scan results yet</td>
                             </tr>
                         </tbody>
                     </table>
+                </div>
+            </div>
+
+            <!-- Device Details Tab -->
+            <div id="details-tab" class="tab-content">
+                <div id="device-details-container">
+                    <div id="device-details-header">
+                        <h3 id="device-details-title">Select a device from the Device List</h3>
+                    </div>
+                    <div id="device-details-content">
+                        <div id="device-info" class="details-section">
+                            <h4>Device Information</h4>
+                            <div id="device-basic-info"></div>
+                        </div>
+                        <div id="device-ports" class="details-section">
+                            <h4>Open Ports</h4>
+                            <table id="ports-table">
+                                <thead>
+                                    <tr>
+                                        <th>Port</th>
+                                        <th>Protocol</th>
+                                        <th>State</th>
+                                        <th>Service</th>
+                                        <th>Product</th>
+                                        <th>Version</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="ports-body">
+                                    <tr>
+                                        <td colspan="6" class="no-data">No device selected</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div id="device-notes" class="details-section">
+                            <h4>Notes</h4>
+                            <textarea id="device-notes-input" placeholder="Enter notes for this device..." rows="5"></textarea>
+                            <button id="save-notes-btn" class="btn btn-primary" style="margin-top: 10px;">Save Notes</button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </section>

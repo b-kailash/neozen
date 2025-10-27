@@ -6,6 +6,9 @@ const socket = io(API_BASE);
 
 // State
 let isScanning = false;
+let scanResults = {};
+let selectedDeviceIp = null;
+let deviceNotes = {}; // Store notes per device IP
 
 // DOM Elements
 const targetInput = document.getElementById('target');
@@ -24,7 +27,12 @@ const downloadXmlBtn = document.getElementById('download-xml-btn');
 const exportCsvBtn = document.getElementById('export-csv-btn');
 const statusDiv = document.getElementById('status');
 const rawOutputDiv = document.getElementById('raw-output');
-const resultsBody = document.getElementById('results-body');
+const devicesBody = document.getElementById('devices-body');
+const portsBody = document.getElementById('ports-body');
+const deviceBasicInfo = document.getElementById('device-basic-info');
+const deviceDetailsTitle = document.getElementById('device-details-title');
+const deviceNotesInput = document.getElementById('device-notes-input');
+const saveNotesBtn = document.getElementById('save-notes-btn');
 const connectionStatus = document.getElementById('connection-status');
 const connectionText = document.getElementById('connection-text');
 
@@ -75,8 +83,9 @@ socket.on('scan_results', (data) => {
     console.log('Received scan_results event:', data);
     console.log('Results object:', data.results);
     console.log('Number of hosts:', Object.keys(data.results || {}).length);
-    displayResults(data.results);
-    switchTab('results');
+    scanResults = data.results;
+    displayDeviceList(data.results);
+    switchTab('devices');
 });
 
 socket.on('scan_started', (data) => {
@@ -85,7 +94,12 @@ socket.on('scan_started', (data) => {
     updateStatus(`Scan started: ${data.target}`);
     rawOutputDiv.textContent = '';
     // Clear previous results and disable export buttons
-    resultsBody.innerHTML = '<tr><td colspan="8" class="no-data">Scanning...</td></tr>';
+    scanResults = {};
+    selectedDeviceIp = null;
+    devicesBody.innerHTML = '<tr><td colspan="3" class="no-data">Scanning...</td></tr>';
+    portsBody.innerHTML = '<tr><td colspan="6" class="no-data">No device selected</td></tr>';
+    deviceBasicInfo.innerHTML = '';
+    deviceDetailsTitle.textContent = 'Select a device from the Device List';
     downloadXmlBtn.disabled = true;
     exportCsvBtn.disabled = true;
 });
@@ -122,6 +136,7 @@ stopBtn.addEventListener('click', stopScan);
 saveProfileBtn.addEventListener('click', saveProfile);
 downloadXmlBtn.addEventListener('click', downloadXml);
 exportCsvBtn.addEventListener('click', exportCsv);
+saveNotesBtn.addEventListener('click', saveDeviceNotes);
 
 // Profile selection
 profileSelect.addEventListener('change', loadProfile);
@@ -300,43 +315,125 @@ function appendOutput(text) {
     rawOutputDiv.scrollTop = rawOutputDiv.scrollHeight;
 }
 
-function displayResults(results) {
-    resultsBody.innerHTML = '';
+function displayDeviceList(results) {
+    devicesBody.innerHTML = '';
 
     if (!results || Object.keys(results).length === 0) {
-        resultsBody.innerHTML = '<tr><td colspan="8" class="no-data">No results found</td></tr>';
+        devicesBody.innerHTML = '<tr><td colspan="3" class="no-data">No results found</td></tr>';
         return;
     }
 
-    // Parse and display results
+    // Display device list (one row per device)
     for (const [host, hostData] of Object.entries(results)) {
         const hostname = hostData.hostname || '';
         const displayHost = hostname && hostname !== host ? `${hostname} (${host})` : host;
         const macAddress = hostData.mac || '';
         const vendor = hostData.vendor || '';
         const macDisplay = macAddress && vendor ? `${macAddress} (${vendor})` : macAddress;
-        const protocols = hostData.protocols || {};
 
-        if (Object.keys(protocols).length === 0) {
-            // Host is up but no ports
-            const row = resultsBody.insertRow();
-            row.innerHTML = `
-                <td>${displayHost}</td>
-                <td>${macDisplay}</td>
-                <td colspan="6" class="no-data">No open ports found</td>
-            `;
-            continue;
+        // Get best OS match
+        const osmatches = hostData.osmatch || [];
+        let detectedOS = 'Unknown';
+        if (osmatches.length > 0) {
+            // Sort by accuracy and get the best match
+            const sortedMatches = osmatches.sort((a, b) => {
+                return parseInt(b.accuracy || '0') - parseInt(a.accuracy || '0');
+            });
+            detectedOS = sortedMatches[0].name;
+            if (sortedMatches[0].accuracy) {
+                detectedOS += ` (${sortedMatches[0].accuracy}%)`;
+            }
         }
 
-        // Display each port
+        const row = devicesBody.insertRow();
+        row.dataset.hostIp = host;
+        row.innerHTML = `
+            <td>${displayHost}</td>
+            <td>${macDisplay}</td>
+            <td>${detectedOS}</td>
+        `;
+
+        // Add click handler
+        row.addEventListener('click', () => {
+            selectDevice(host, row);
+        });
+    }
+}
+
+function selectDevice(hostIp, rowElement) {
+    selectedDeviceIp = hostIp;
+
+    // Update row selection styling
+    document.querySelectorAll('#devices-body tr').forEach(tr => tr.classList.remove('selected'));
+    rowElement.classList.add('selected');
+
+    // Display device details
+    showDeviceDetails(hostIp);
+
+    // Switch to Device Details tab
+    switchTab('details');
+}
+
+function showDeviceDetails(hostIp) {
+    const hostData = scanResults[hostIp];
+
+    if (!hostData) {
+        deviceDetailsTitle.textContent = 'Device not found';
+        deviceBasicInfo.innerHTML = '';
+        portsBody.innerHTML = '<tr><td colspan="6" class="no-data">Device not found</td></tr>';
+        return;
+    }
+
+    // Update title
+    const hostname = hostData.hostname || '';
+    const displayHost = hostname && hostname !== hostIp ? `${hostname} (${hostIp})` : hostIp;
+    deviceDetailsTitle.textContent = `Device Details: ${displayHost}`;
+
+    // Display basic info
+    const macAddress = hostData.mac || 'N/A';
+    const vendor = hostData.vendor || '';
+    const macDisplay = vendor ? `${macAddress} (${vendor})` : macAddress;
+    const state = hostData.state || 'unknown';
+
+    // Get OS detection info
+    const osmatches = hostData.osmatch || [];
+    let osInfo = 'Unknown';
+    if (osmatches.length > 0) {
+        const sortedMatches = osmatches.sort((a, b) => {
+            return parseInt(b.accuracy || '0') - parseInt(a.accuracy || '0');
+        });
+        osInfo = sortedMatches.map(match => {
+            return `${match.name} (${match.accuracy}% accuracy)`;
+        }).join('<br>');
+    }
+
+    deviceBasicInfo.innerHTML = `
+        <div class="info-label">IP Address:</div>
+        <div class="info-value">${hostIp}</div>
+        <div class="info-label">Hostname:</div>
+        <div class="info-value">${hostname || 'N/A'}</div>
+        <div class="info-label">State:</div>
+        <div class="info-value">${state}</div>
+        <div class="info-label">MAC Address:</div>
+        <div class="info-value">${macDisplay}</div>
+        <div class="info-label">Detected OS:</div>
+        <div class="info-value">${osInfo}</div>
+    `;
+
+    // Display ports
+    portsBody.innerHTML = '';
+    const protocols = hostData.protocols || {};
+
+    if (Object.keys(protocols).length === 0) {
+        portsBody.innerHTML = '<tr><td colspan="6" class="no-data">No open ports found</td></tr>';
+    } else {
+        // Display all ports
         for (const [proto, ports] of Object.entries(protocols)) {
             for (const [port, portData] of Object.entries(ports)) {
-                const row = resultsBody.insertRow();
+                const row = portsBody.insertRow();
                 row.innerHTML = `
-                    <td>${displayHost}</td>
-                    <td>${macDisplay}</td>
-                    <td>${proto}</td>
                     <td>${port}</td>
+                    <td>${proto}</td>
                     <td>${portData.state || ''}</td>
                     <td>${portData.name || ''}</td>
                     <td>${portData.product || ''}</td>
@@ -344,6 +441,40 @@ function displayResults(results) {
                 `;
             }
         }
+    }
+
+    // Load notes for this device
+    deviceNotesInput.value = deviceNotes[hostIp] || '';
+}
+
+function saveDeviceNotes() {
+    if (!selectedDeviceIp) {
+        alert('No device selected');
+        return;
+    }
+
+    const notes = deviceNotesInput.value;
+    deviceNotes[selectedDeviceIp] = notes;
+
+    // Save to localStorage for persistence
+    try {
+        localStorage.setItem('neozen_device_notes', JSON.stringify(deviceNotes));
+        updateStatus(`Notes saved for ${selectedDeviceIp}`);
+    } catch (error) {
+        console.error('Failed to save notes:', error);
+        alert('Failed to save notes');
+    }
+}
+
+// Load notes from localStorage on page load
+function loadDeviceNotes() {
+    try {
+        const savedNotes = localStorage.getItem('neozen_device_notes');
+        if (savedNotes) {
+            deviceNotes = JSON.parse(savedNotes);
+        }
+    } catch (error) {
+        console.error('Failed to load notes:', error);
     }
 }
 
@@ -551,4 +682,5 @@ function applyScanBuilderSettings() {
 
 // Initialize
 loadProfiles();
+loadDeviceNotes();
 updateUIState();
