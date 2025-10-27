@@ -30,10 +30,12 @@ ENV/
 # PyInstaller
 *.spec~
 
-# Built executables
-neozen
+# Built executables (exclude files, not the neozen/ source directory!)
+# Note: neozen/ is our source directory, don't exclude it
 neozen.exe
 NeoZen.app/
+# If you have a built executable named just "neozen" (no extension),
+# it would be in the root, but we need the neozen/ directory
 
 # Tests
 .pytest_cache/
