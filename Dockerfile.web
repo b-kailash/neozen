@@ -21,8 +21,8 @@ WORKDIR /app
 # Copy application files
 COPY --chown=neozen:neozen . .
 
-# Install Python dependencies (use regular install, not editable, for Docker)
-RUN pip install --no-cache-dir ".[web]"
+# Install Python dependencies only (not the package itself)
+RUN pip install --no-cache-dir flask>=2.3.0 flask-socketio>=5.3.0 flask-cors>=4.0.0 python-socketio>=5.9.0 python-nmap>=0.7.1 psutil>=5.9.0
 
 # Switch to non-root user
 USER neozen
@@ -33,5 +33,5 @@ ENV PYTHONPATH=/app
 # Expose web server port
 EXPOSE 8080
 
-# Run web server
-CMD ["python", "-m", "neozen.web.app"]
+# Run web server directly from source
+CMD ["python", "/app/neozen/web/app.py"]
