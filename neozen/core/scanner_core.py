@@ -143,6 +143,11 @@ class NmapScanner(threading.Thread):
             )
             self.temp_xml_file_path = temp_file.name
             temp_file.close()  # Close handle so Nmap can write to it
+
+            # If using sudo, make the file writable by root (chmod 666)
+            # This allows sudo nmap to write to the temp file created by non-root user
+            if use_sudo:
+                os.chmod(self.temp_xml_file_path, 0o666)
         except Exception as e:
             self._on_error(f"Failed to create temporary file for XML output: {e}")
             return None  # Indicate error
