@@ -116,7 +116,7 @@ def start_scan():
 
         def on_results_callback(results):
             """Handle results: update state and emit SocketIO event"""
-            nonlocal scan_results
+            global scan_results
             scan_results = results
             socketio.emit('scan_results', {'results': results})
 
