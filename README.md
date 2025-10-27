@@ -112,7 +112,7 @@ NeoZen is a modern, cross-platform interface for the powerful Nmap network scann
 * **Simple Deployment** - Dedicated web container
   * Dockerfile.web for minimal web-only deployment (~150MB vs ~250MB)
   * docker-build-web.sh and docker-run-web.sh scripts
-  * Access via http://localhost:8080
+  * Access via http://localhost:8080 or http://HOST_IP:8080
 
 #### **Architecture Refactoring (v0.2.0)** ✨
 * **Layered Architecture** - Separation of concerns with clean boundaries
@@ -224,7 +224,7 @@ source venv/bin/activate
 
 pip install -e ".[web]"
 python -m neozen.web.app
-# Access at http://localhost:8080
+# Access at http://localhost:8080 or http://HOST_IP:8080 from any machine on the network
 ```
 
 **Both Interfaces:**
@@ -454,7 +454,9 @@ xhost -local:docker  # Cleanup (optional)
 ./docker-run-web.sh
 ```
 
-**Access:** http://localhost:8080
+**Access:**
+- Local: http://localhost:8080
+- Remote: http://HOST_IP:8080 (replace HOST_IP with your server's IP address)
 
 **Requirements:** Just Docker and a web browser!
 **Size:** ~150MB (no PyQt6, no X11 libraries)
@@ -484,7 +486,9 @@ docker-compose --profile web up
 # Run in background
 docker-compose --profile web up -d
 
-# Access at http://localhost:8080
+# Access at:
+#  - Local: http://localhost:8080
+#  - Remote: http://HOST_IP:8080 (from any machine on your network)
 
 # Stop the container
 docker-compose --profile web down
@@ -565,7 +569,33 @@ pip install -e ".[web]"
 python -m neozen.web.app
 ```
 
-**Access:** http://localhost:8080
+**Access:**
+- Local: http://localhost:8080
+- Remote: http://HOST_IP:8080 (from any machine on your network)
+
+#### Network Access Notes
+
+The web dashboard uses `host` network mode in Docker, which means:
+- ✅ The application binds to `0.0.0.0:8080` (all network interfaces)
+- ✅ Accessible from any machine on your network via `http://HOST_IP:8080`
+- ✅ No port mapping needed - uses host's network directly
+
+**To find your host IP address:**
+```bash
+# Linux/macOS
+hostname -I | awk '{print $1}'
+# or
+ip addr show | grep "inet " | grep -v 127.0.0.1
+
+# Windows
+ipconfig | findstr IPv4
+```
+
+**Firewall considerations:**
+- Ensure port 8080 is open in your firewall
+- Linux: `sudo ufw allow 8080/tcp`
+- Windows: Allow port 8080 in Windows Defender Firewall
+- Cloud/VPS: Configure security group to allow inbound TCP on port 8080
 
 ### Using the Web Interface
 

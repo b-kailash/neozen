@@ -119,6 +119,9 @@ scanner.start()
 - Flask + SocketIO for real-time updates
 - Browser-based interface
 - Entry point: `neozen/web/app.py`
+- Binds to `0.0.0.0:8080` for network access (configurable in `run_server()`)
+- Accessible via localhost or host IP address
+- Docker uses `network_mode: host` for direct host network access
 
 ### Threading Model
 
