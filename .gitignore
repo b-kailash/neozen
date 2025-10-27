@@ -37,6 +37,9 @@ MANIFEST
 /neozen.exe
 /NeoZen.app/
 
+# Claude Code project instructions
+CLAUDE.md
+
 # Installer logs
 pip-log.txt
 pip-delete-this-directory.txt
