@@ -4,11 +4,21 @@
 const API_BASE = window.location.origin;
 const socket = io(API_BASE);
 
+// Global error handler for authentication
+function handleAuthError(response) {
+    if (response.status === 401) {
+        alert('Your session has expired. Please login again.');
+        window.location.href = '/login';
+        return true;
+    }
+    return false;
+}
+
 // State
 let isScanning = false;
 let scanResults = {};
 let selectedDeviceIp = null;
-let deviceNotes = {}; // Store notes per device IP
+let deviceNotes = {}; // Store notes per device IP (loaded from server)
 
 // DOM Elements
 const targetInput = document.getElementById('target');
@@ -36,6 +46,7 @@ const deviceNotesInput = document.getElementById('device-notes-input');
 const saveNotesBtn = document.getElementById('save-notes-btn');
 const connectionStatus = document.getElementById('connection-status');
 const connectionText = document.getElementById('connection-text');
+const logoutBtn = document.getElementById('logout-btn');
 
 // Tab switching
 document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -138,6 +149,7 @@ saveProfileBtn.addEventListener('click', saveProfile);
 downloadXmlBtn.addEventListener('click', downloadXml);
 exportCsvBtn.addEventListener('click', exportCsv);
 saveNotesBtn.addEventListener('click', saveDeviceNotes);
+logoutBtn.addEventListener('click', logout);
 
 // Profile selection
 profileSelect.addEventListener('change', loadProfile);
@@ -247,6 +259,8 @@ async function startScan() {
             body: JSON.stringify(requestBody)
         });
 
+        if (handleAuthError(response)) return;
+
         const data = await response.json();
 
         if (response.ok) {
@@ -307,6 +321,27 @@ async function saveProfile() {
     } catch (error) {
         console.error('Failed to save profile:', error);
         alert('Failed to save profile');
+    }
+}
+
+async function logout() {
+    try {
+        const response = await fetch(`${API_BASE}/api/auth/logout`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            // Redirect to login page
+            window.location.href = '/login';
+        } else {
+            alert(data.error || 'Failed to logout');
+        }
+    } catch (error) {
+        console.error('Logout error:', error);
+        alert('Failed to logout');
     }
 }
 
@@ -507,31 +542,52 @@ function showDeviceDetails(hostIp) {
     deviceNotesInput.value = deviceNotes[hostIp] || '';
 }
 
-function saveDeviceNotes() {
+async function saveDeviceNotes() {
     if (!selectedDeviceIp) {
         alert('No device selected');
         return;
     }
 
     const notes = deviceNotesInput.value;
-    deviceNotes[selectedDeviceIp] = notes;
 
-    // Save to localStorage for persistence
     try {
-        localStorage.setItem('neozen_device_notes', JSON.stringify(deviceNotes));
-        updateStatus(`Notes saved for ${selectedDeviceIp}`);
+        const response = await fetch(`${API_BASE}/api/devices/${encodeURIComponent(selectedDeviceIp)}/notes`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ notes })
+        });
+
+        if (handleAuthError(response)) return;
+
+        const data = await response.json();
+
+        if (response.ok) {
+            deviceNotes[selectedDeviceIp] = notes;
+            updateStatus(`Notes saved for ${selectedDeviceIp}`);
+        } else {
+            alert(data.error || 'Failed to save notes');
+        }
     } catch (error) {
         console.error('Failed to save notes:', error);
         alert('Failed to save notes');
     }
 }
 
-// Load notes from localStorage on page load
-function loadDeviceNotes() {
+// Load all device notes from server
+async function loadDeviceNotes() {
     try {
-        const savedNotes = localStorage.getItem('neozen_device_notes');
-        if (savedNotes) {
-            deviceNotes = JSON.parse(savedNotes);
+        const response = await fetch(`${API_BASE}/api/devices/notes`);
+
+        if (handleAuthError(response)) return;
+
+        const data = await response.json();
+
+        if (response.ok && data.notes) {
+            // Convert notes object format
+            deviceNotes = {};
+            for (const [ip, noteData] of Object.entries(data.notes)) {
+                deviceNotes[ip] = noteData.notes || '';
+            }
         }
     } catch (error) {
         console.error('Failed to load notes:', error);

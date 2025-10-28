@@ -28,7 +28,16 @@ header {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
     padding: 30px;
-    text-align: center;
+}
+
+.header-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.header-title {
+    text-align: left;
 }
 
 header h1 {
@@ -39,6 +48,34 @@ header h1 {
 .subtitle {
     font-size: 1.1em;
     opacity: 0.9;
+}
+
+.user-info {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.user-info .username {
+    font-size: 1.1em;
+    font-weight: 600;
+    padding: 8px 16px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 20px;
+}
+
+.btn-logout {
+    background: rgba(255, 255, 255, 0.3);
+    color: white;
+    padding: 8px 20px;
+    border: 2px solid white;
+    font-size: 0.9em;
+}
+
+.btn-logout:hover:not(:disabled) {
+    background: white;
+    color: #667eea;
+    transform: translateY(-1px);
 }
 
 /* Configuration Section */
@@ -605,6 +642,20 @@ footer {
 @media (max-width: 768px) {
     header h1 {
         font-size: 2em;
+    }
+
+    .header-content {
+        flex-direction: column;
+        gap: 20px;
+    }
+
+    .header-title {
+        text-align: center;
+    }
+
+    .user-info {
+        flex-direction: column;
+        gap: 10px;
     }
 
     .button-group {

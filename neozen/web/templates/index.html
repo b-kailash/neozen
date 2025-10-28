@@ -11,8 +11,16 @@
     <div class="container">
         <!-- Header -->
         <header>
-            <h1>🔍 NeoZen</h1>
-            <p class="subtitle">Modern Nmap GUI - Web Interface</p>
+            <div class="header-content">
+                <div class="header-title">
+                    <h1>🔍 NeoZen</h1>
+                    <p class="subtitle">Modern Nmap GUI - Web Interface</p>
+                </div>
+                <div class="user-info">
+                    <span class="username">{{ user.username }}</span>
+                    <button id="logout-btn" class="btn btn-logout">Logout</button>
+                </div>
+            </div>
         </header>
 
         <!-- Scan Configuration -->

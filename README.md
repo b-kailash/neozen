@@ -182,10 +182,31 @@ These scripts will:
 
 #### Web Dashboard (Flask)
 - Browser-based interface
+- **Multi-user support** with authentication
+- **Per-user scan isolation** and history
 - Real-time WebSocket updates
 - Responsive design (works on mobile)
 - Remote access ready
 - No installation required (Docker)
+
+### Multi-User Features (Web Dashboard)
+
+The web dashboard supports multiple concurrent users with full data isolation:
+
+- **User Authentication** - Secure login system with password hashing
+- **Session Management** - Per-user scan sessions and results
+- **Scan History** - Each user has their own scan history database
+- **Device Notes** - Per-user notes for documented hosts
+- **Concurrent Scanning** - Multiple users can run scans simultaneously
+- **Data Isolation** - WebSocket rooms ensure users only see their own updates
+
+**Default Credentials:**
+- Username: `admin`
+- Password: `admin`
+
+⚠️ **Security Notice:** Change the default admin password immediately after first login. The web interface does not use HTTPS by default—consider using a reverse proxy (nginx, Caddy) with SSL/TLS for production deployments.
+
+**Database:** The web interface uses SQLite (`neozen.db`) by default. For production deployments, configure `DATABASE_URL` environment variable to use PostgreSQL or MySQL.
 
 ---
 
@@ -195,14 +216,18 @@ These scripts will:
 
 1. **Start the server** (Docker or Python)
 2. **Open browser** to http://localhost:8080
-3. **Configure scan:**
+3. **Login** with credentials (default: admin/admin)
+4. **Configure scan:**
    - Enter target (IP, hostname, or network range)
    - Select scan type from dropdown
    - Enable OS/Service detection if needed
    - Optional: Enable parallel scanning for network ranges
-4. **Start scan** and view real-time output
-5. **Switch to "Parsed Results"** tab for structured data
-6. **Export results** as needed
+5. **Start scan** and view real-time output
+6. **Switch to "Device List"** tab for structured data
+7. **Click on a device** to view detailed port information
+8. **Add notes** to devices for documentation (saved per-user)
+9. **Export results** as XML, JSON, or CSV
+10. **View scan history** via API: `GET /api/scans/history`
 
 ### Desktop GUI
 
