@@ -25,124 +25,63 @@ NeoZen provides an intuitive graphical interface for Nmap, the industry-standard
 
 ## Quick Start (Recommended)
 
-### Using Docker - Web Interface
+### Web Dashboard - Docker (Fastest) ⭐
 
-**The fastest way to get started:**
+**Get running in 30 seconds:**
 
 ```bash
-# Clone the repository
 git clone https://github.com/yourusername/neozen.git
 cd neozen
-
-# Start the web interface
 docker-compose --profile web up -d
 ```
 
-**Access the interface:**
-- **From the same machine:** http://localhost:8080
-- **From other devices:** http://YOUR_SERVER_IP:8080
+**Access:** http://localhost:8080 (login: admin/admin)
 
-**Find your server IP:**
-```bash
-hostname -I | awk '{print $1}'  # Linux/macOS
-ipconfig | findstr IPv4          # Windows
-```
+**📖 [Complete Web Setup Guide →](WEB_SETUP.md)**
 
-**Stop the container:**
+---
+
+### Desktop GUI - Python
+
 ```bash
-docker-compose --profile web down
+git clone https://github.com/yourusername/neozen.git
+cd neozen
+pip install -e ".[desktop]"
+python main.py
 ```
 
 ---
 
 ## Installation Options
 
-### Option 1: Docker Web Interface (Recommended) ⭐
+| Method | Best For | Setup Time | Documentation |
+|--------|----------|------------|---------------|
+| **Docker Web** ⭐ | Servers, remote access, multi-user | 30 seconds | **[Web Setup Guide](WEB_SETUP.md)** |
+| **Docker Desktop** | Containerized desktop | 1 minute | See below |
+| **Python Web** | Development, customization | 2 minutes | **[Web Setup Guide](WEB_SETUP.md)** |
+| **Python Desktop** | Local desktop use | 2 minutes | See below |
 
-Perfect for servers, remote access, or quick testing.
-
-```bash
-docker-compose --profile web up -d
-```
-
-**Advantages:**
-- ✅ No Python installation required
-- ✅ Access from any device with a browser
-- ✅ Runs on servers without a display
-- ✅ Smallest footprint (~150MB)
-- ✅ Automatic sudo configuration for privileged scans
-
-**Access:** http://localhost:8080 or http://SERVER_IP:8080
-
----
-
-### Option 2: Docker Desktop GUI
-
-For full desktop experience in Docker.
+### Docker Desktop GUI
 
 ```bash
-# Allow X11 forwarding (Linux/macOS)
-xhost +local:docker
-
-# Start desktop GUI
+xhost +local:docker  # Allow X11 forwarding (Linux/macOS)
 docker-compose --profile desktop up -d
 ```
 
-**Requirements:** X11 server, display forwarding
-**Size:** ~250MB (includes PyQt6 and X11 libraries)
+### Python - Desktop GUI
 
----
-
-### Option 3: Python Installation
-
-#### Web Dashboard Only (Minimal)
 ```bash
-# Clone and setup
 git clone https://github.com/yourusername/neozen.git
 cd neozen
 python3 -m venv venv
-source venv/bin/activate  # Linux/macOS
-# .\venv\Scripts\activate  # Windows
-
-# Install web dependencies only
-pip install -e ".[web]"
-
-# Run the web server
-python -m neozen.web.app
-```
-
-Access at http://localhost:8080 or http://YOUR_IP:8080
-
-#### Desktop GUI Only
-```bash
+source venv/bin/activate  # .\venv\Scripts\activate on Windows
 pip install -e ".[desktop]"
 python main.py
 ```
 
-#### Both Interfaces
-```bash
-pip install -e ".[all]"
-```
+### Automated Scripts
 
----
-
-### Option 4: Automated Installation Scripts
-
-**Linux/macOS:**
-```bash
-./install.sh
-```
-
-**Windows:**
-```cmd
-install.bat
-```
-
-These scripts will:
-- Check for Python 3 and Nmap
-- Install dependencies
-- Set up virtual environment
-- Build standalone executable (optional)
+**Linux/macOS:** `./install.sh` | **Windows:** `install.bat`
 
 ---
 
@@ -240,31 +179,19 @@ The web dashboard supports multiple concurrent users with full data isolation:
 
 ---
 
-## Network Access & Firewall
+## Network Access
 
-The web interface binds to `0.0.0.0:8080`, making it accessible from:
+The web interface is accessible at:
 - **Local machine:** http://localhost:8080
 - **Same network:** http://SERVER_IP:8080
-- **Internet:** Configure port forwarding/firewall (be cautious!)
+- **Internet:** Requires port forwarding and firewall configuration
 
-### Firewall Configuration
-
-**Linux (UFW):**
+**Quick firewall setup (allow port 8080):**
 ```bash
-sudo ufw allow 8080/tcp
+sudo ufw allow 8080/tcp  # Linux (UFW)
 ```
 
-**Linux (iptables):**
-```bash
-sudo iptables -A INPUT -p tcp --dport 8080 -j ACCEPT
-```
-
-**Windows:**
-- Open Windows Defender Firewall
-- Create inbound rule for TCP port 8080
-
-**Cloud/VPS:**
-- Configure security group to allow TCP port 8080
+**📖 For production deployment, SSL, reverse proxy, and security configuration, see [Web Setup Guide](WEB_SETUP.md#production-deployment)**
 
 ---
 
