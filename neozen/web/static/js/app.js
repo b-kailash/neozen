@@ -46,7 +46,11 @@ const deviceNotesInput = document.getElementById('device-notes-input');
 const saveNotesBtn = document.getElementById('save-notes-btn');
 const connectionStatus = document.getElementById('connection-status');
 const connectionText = document.getElementById('connection-text');
-const logoutBtn = document.getElementById('logout-btn');
+const adminMenuBtn = document.getElementById('admin-menu-btn');
+const adminDropdown = document.getElementById('admin-dropdown');
+const manageUsersLink = document.getElementById('manage-users-link');
+const manageProfileLink = document.getElementById('manage-profile-link');
+const logoutLink = document.getElementById('logout-link');
 
 // Tab switching
 document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -149,7 +153,40 @@ saveProfileBtn.addEventListener('click', saveProfile);
 downloadXmlBtn.addEventListener('click', downloadXml);
 exportCsvBtn.addEventListener('click', exportCsv);
 saveNotesBtn.addEventListener('click', saveDeviceNotes);
-logoutBtn.addEventListener('click', logout);
+
+// Admin dropdown menu
+adminMenuBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    adminDropdown.classList.toggle('show');
+});
+
+// Close dropdown when clicking outside
+document.addEventListener('click', () => {
+    adminDropdown.classList.remove('show');
+});
+
+// Manage Users link
+if (manageUsersLink) {
+    manageUsersLink.addEventListener('click', (e) => {
+        e.preventDefault();
+        adminDropdown.classList.remove('show');
+        openManageUsersModal();
+    });
+}
+
+// Manage Profile link
+manageProfileLink.addEventListener('click', (e) => {
+    e.preventDefault();
+    adminDropdown.classList.remove('show');
+    openManageProfileModal();
+});
+
+// Logout link
+logoutLink.addEventListener('click', (e) => {
+    e.preventDefault();
+    adminDropdown.classList.remove('show');
+    logout();
+});
 
 // Profile selection
 profileSelect.addEventListener('change', loadProfile);
@@ -797,6 +834,265 @@ function applyScanBuilderSettings() {
     // Close modal
     closeScanBuilder();
 }
+
+// ===== User Management Functions =====
+
+// Manage Users Modal
+function openManageUsersModal() {
+    const modal = document.getElementById('manage-users-modal');
+    modal.classList.add('show');
+    loadUsers();
+}
+
+function closeManageUsersModal() {
+    const modal = document.getElementById('manage-users-modal');
+    modal.classList.remove('show');
+    document.getElementById('create-user-form').style.display = 'none';
+}
+
+async function loadUsers() {
+    try {
+        const response = await fetch(`${API_BASE}/api/users`);
+        if (handleAuthError(response)) return;
+
+        const data = await response.json();
+        const tbody = document.getElementById('users-tbody');
+        tbody.innerHTML = '';
+
+        if (!response.ok) {
+            tbody.innerHTML = `<tr><td colspan="5" class="no-data">${data.error || 'Failed to load users'}</td></tr>`;
+            return;
+        }
+
+        if (data.users.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" class="no-data">No users found</td></tr>';
+            return;
+        }
+
+        data.users.forEach(user => {
+            const row = tbody.insertRow();
+            row.innerHTML = `
+                <td>${user.username}</td>
+                <td>${user.email || '—'}</td>
+                <td>${user.is_admin ? '<span class="admin-badge">Admin</span>' : '—'}</td>
+                <td>${user.last_login ? new Date(user.last_login).toLocaleString() : 'Never'}</td>
+                <td>
+                    ${!user.is_admin ? `<button class="btn btn-secondary action-btn" onclick="toggleAdmin(${user.id}, true)">Make Admin</button>` : ''}
+                    ${user.is_admin ? `<button class="btn btn-secondary action-btn" onclick="toggleAdmin(${user.id}, false)">Remove Admin</button>` : ''}
+                    <button class="btn btn-danger action-btn" onclick="deleteUser(${user.id}, '${user.username}')">Delete</button>
+                </td>
+            `;
+        });
+    } catch (error) {
+        console.error('Failed to load users:', error);
+        document.getElementById('users-tbody').innerHTML = '<tr><td colspan="5" class="no-data">Error loading users</td></tr>';
+    }
+}
+
+async function toggleAdmin(userId, makeAdmin) {
+    if (!confirm(`Are you sure you want to ${makeAdmin ? 'grant' : 'remove'} admin privileges?`)) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_BASE}/api/users/${userId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ is_admin: makeAdmin })
+        });
+
+        if (handleAuthError(response)) return;
+
+        const data = await response.json();
+
+        if (response.ok) {
+            updateStatus(data.message);
+            loadUsers();
+        } else {
+            alert(data.error || 'Failed to update user');
+        }
+    } catch (error) {
+        console.error('Failed to update user:', error);
+        alert('Failed to update user');
+    }
+}
+
+async function deleteUser(userId, username) {
+    if (!confirm(`Are you sure you want to delete user "${username}"? This action cannot be undone.`)) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_BASE}/api/users/${userId}`, {
+            method: 'DELETE'
+        });
+
+        if (handleAuthError(response)) return;
+
+        const data = await response.json();
+
+        if (response.ok) {
+            updateStatus(data.message);
+            loadUsers();
+        } else {
+            alert(data.error || 'Failed to delete user');
+        }
+    } catch (error) {
+        console.error('Failed to delete user:', error);
+        alert('Failed to delete user');
+    }
+}
+
+async function createNewUser() {
+    const username = document.getElementById('new-username').value.trim();
+    const email = document.getElementById('new-email').value.trim();
+    const password = document.getElementById('new-password').value;
+    const isAdmin = document.getElementById('new-is-admin').checked;
+
+    if (!username || !password) {
+        alert('Username and password are required');
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_BASE}/api/users`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                username,
+                email: email || null,
+                password,
+                is_admin: isAdmin
+            })
+        });
+
+        if (handleAuthError(response)) return;
+
+        const data = await response.json();
+
+        if (response.ok) {
+            updateStatus(data.message);
+            document.getElementById('create-user-form').style.display = 'none';
+            // Clear form
+            document.getElementById('new-username').value = '';
+            document.getElementById('new-email').value = '';
+            document.getElementById('new-password').value = '';
+            document.getElementById('new-is-admin').checked = false;
+            loadUsers();
+        } else {
+            alert(data.error || 'Failed to create user');
+        }
+    } catch (error) {
+        console.error('Failed to create user:', error);
+        alert('Failed to create user');
+    }
+}
+
+// Manage Profile Modal
+function openManageProfileModal() {
+    const modal = document.getElementById('manage-profile-modal');
+    modal.classList.add('show');
+    // Clear previous messages and inputs
+    document.getElementById('password-change-error').style.display = 'none';
+    document.getElementById('password-change-success').style.display = 'none';
+    document.getElementById('current-password').value = '';
+    document.getElementById('new-password-profile').value = '';
+    document.getElementById('confirm-password').value = '';
+}
+
+function closeManageProfileModal() {
+    const modal = document.getElementById('manage-profile-modal');
+    modal.classList.remove('show');
+}
+
+async function changePasswordAction() {
+    const currentPassword = document.getElementById('current-password').value;
+    const newPassword = document.getElementById('new-password-profile').value;
+    const confirmPassword = document.getElementById('confirm-password').value;
+
+    const errorDiv = document.getElementById('password-change-error');
+    const successDiv = document.getElementById('password-change-success');
+
+    // Hide previous messages
+    errorDiv.style.display = 'none';
+    successDiv.style.display = 'none';
+
+    // Validation
+    if (!currentPassword || !newPassword || !confirmPassword) {
+        errorDiv.textContent = 'All fields are required';
+        errorDiv.style.display = 'block';
+        return;
+    }
+
+    if (newPassword !== confirmPassword) {
+        errorDiv.textContent = 'New passwords do not match';
+        errorDiv.style.display = 'block';
+        return;
+    }
+
+    if (newPassword.length < 6) {
+        errorDiv.textContent = 'New password must be at least 6 characters';
+        errorDiv.style.display = 'block';
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_BASE}/api/users/me/password`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                current_password: currentPassword,
+                new_password: newPassword
+            })
+        });
+
+        if (handleAuthError(response)) return;
+
+        const data = await response.json();
+
+        if (response.ok) {
+            successDiv.textContent = data.message;
+            successDiv.style.display = 'block';
+            // Clear form
+            document.getElementById('current-password').value = '';
+            document.getElementById('new-password-profile').value = '';
+            document.getElementById('confirm-password').value = '';
+            updateStatus('Password changed successfully');
+        } else {
+            errorDiv.textContent = data.error || 'Failed to change password';
+            errorDiv.style.display = 'block';
+        }
+    } catch (error) {
+        console.error('Failed to change password:', error);
+        errorDiv.textContent = 'Network error. Please try again.';
+        errorDiv.style.display = 'block';
+    }
+}
+
+// Event Listeners for modals
+document.getElementById('users-modal-close-btn').addEventListener('click', closeManageUsersModal);
+document.getElementById('profile-modal-close-btn').addEventListener('click', closeManageProfileModal);
+document.getElementById('create-user-btn').addEventListener('click', () => {
+    document.getElementById('create-user-form').style.display = 'block';
+});
+document.getElementById('cancel-new-user-btn').addEventListener('click', () => {
+    document.getElementById('create-user-form').style.display = 'none';
+});
+document.getElementById('save-new-user-btn').addEventListener('click', createNewUser);
+document.getElementById('change-password-btn').addEventListener('click', changePasswordAction);
+document.getElementById('cancel-password-btn').addEventListener('click', closeManageProfileModal);
+
+// Close modals when clicking outside
+document.getElementById('manage-users-modal').addEventListener('click', (e) => {
+    if (e.target.id === 'manage-users-modal') {
+        closeManageUsersModal();
+    }
+});
+document.getElementById('manage-profile-modal').addEventListener('click', (e) => {
+    if (e.target.id === 'manage-profile-modal') {
+        closeManageProfileModal();
+    }
+});
 
 // Initialize
 loadProfiles();

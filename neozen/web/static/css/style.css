@@ -496,6 +496,64 @@ header h1 {
     font-style: italic;
 }
 
+/* Success Message */
+.success-message {
+    background: #d4edda;
+    color: #155724;
+    padding: 12px;
+    border-radius: 6px;
+    margin-bottom: 20px;
+    border-left: 4px solid #28a745;
+}
+
+.error-message {
+    background: #f8d7da;
+    color: #721c24;
+    padding: 12px;
+    border-radius: 6px;
+    margin-bottom: 20px;
+    border-left: 4px solid #dc3545;
+}
+
+/* Users Table */
+#users-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+}
+
+#users-table th {
+    background: #667eea;
+    color: white;
+    padding: 12px;
+    text-align: left;
+    font-weight: 600;
+}
+
+#users-table td {
+    padding: 12px;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+#users-table tbody tr:hover {
+    background: #f8f9fa;
+}
+
+#users-table .admin-badge {
+    display: inline-block;
+    padding: 4px 8px;
+    background: #667eea;
+    color: white;
+    border-radius: 4px;
+    font-size: 0.85em;
+}
+
+#users-table .action-btn {
+    padding: 4px 12px;
+    font-size: 0.85em;
+    margin-right: 5px;
+}
+
 /* Footer */
 footer {
     background: #f8f9fa;

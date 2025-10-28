@@ -320,6 +320,97 @@
         </div>
     </div>
 
+    <!-- Manage Users Modal -->
+    <div id="manage-users-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Manage Users</h2>
+                <button class="modal-close" id="users-modal-close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <button class="btn btn-primary" id="create-user-btn">Create New User</button>
+                </div>
+
+                <div id="users-list">
+                    <table id="users-table">
+                        <thead>
+                            <tr>
+                                <th>Username</th>
+                                <th>Email</th>
+                                <th>Admin</th>
+                                <th>Last Login</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="users-tbody">
+                            <tr><td colspan="5" class="no-data">Loading...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Create User Form (hidden by default) -->
+                <div id="create-user-form" style="display: none; margin-top: 20px; padding: 20px; background: #f8f9fa; border-radius: 6px;">
+                    <h3>Create New User</h3>
+                    <div class="form-group">
+                        <label for="new-username">Username:</label>
+                        <input type="text" id="new-username" placeholder="Enter username" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="new-email">Email (optional):</label>
+                        <input type="email" id="new-email" placeholder="Enter email">
+                    </div>
+                    <div class="form-group">
+                        <label for="new-password">Password:</label>
+                        <input type="password" id="new-password" placeholder="Enter password" required>
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="new-is-admin">
+                            Grant Admin Privileges
+                        </label>
+                    </div>
+                    <div class="button-group">
+                        <button class="btn btn-primary" id="save-new-user-btn">Create User</button>
+                        <button class="btn btn-secondary" id="cancel-new-user-btn">Cancel</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Manage Profile Modal -->
+    <div id="manage-profile-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Manage Profile</h2>
+                <button class="modal-close" id="profile-modal-close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <h3>Change Password</h3>
+                <div id="password-change-error" class="error-message" style="display: none;"></div>
+                <div id="password-change-success" class="success-message" style="display: none;"></div>
+
+                <div class="form-group">
+                    <label for="current-password">Current Password:</label>
+                    <input type="password" id="current-password" placeholder="Enter current password" required>
+                </div>
+                <div class="form-group">
+                    <label for="new-password-profile">New Password:</label>
+                    <input type="password" id="new-password-profile" placeholder="Enter new password" required>
+                </div>
+                <div class="form-group">
+                    <label for="confirm-password">Confirm New Password:</label>
+                    <input type="password" id="confirm-password" placeholder="Confirm new password" required>
+                </div>
+                <div class="button-group">
+                    <button class="btn btn-primary" id="change-password-btn">Change Password</button>
+                    <button class="btn btn-secondary" id="cancel-password-btn">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 </body>
 </html>
