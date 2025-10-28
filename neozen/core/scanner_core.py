@@ -751,9 +751,24 @@ class ParallelNmapScanner(threading.Thread):
             # Emit final results
             self._on_output(f"\nScan complete! Scanned {len(aggregated_results)} host(s)")
             self._on_results(aggregated_results)
+
+            # Create a combined XML file for parallel scans
+            combined_xml_path = ""
+            try:
+                import json
+                temp_file = tempfile.NamedTemporaryFile(
+                    delete=False, suffix="_parallel.json", mode='w', encoding='utf-8'
+                )
+                combined_xml_path = temp_file.name
+                json.dump(aggregated_results, temp_file, indent=2)
+                temp_file.close()
+                self._on_output(f"[Debug] Saved aggregated results to: {combined_xml_path}")
+            except Exception as e:
+                self._on_output(f"[Warning] Failed to save aggregated results: {e}")
+
             self._on_finished(
                 f"Parallel scan complete: {len(aggregated_results)} host(s) scanned",
-                ""  # No single XML file for parallel scans
+                combined_xml_path
             )
 
         except Exception as e:

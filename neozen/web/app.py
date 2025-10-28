@@ -125,6 +125,8 @@ def start_scan():
             """Handle completion: store XML path and emit SocketIO event"""
             global last_xml_path
             last_xml_path = xml_path
+            print(f"[DEBUG] on_finished_callback called with xml_path: {xml_path}")
+            print(f"[DEBUG] File exists: {os.path.exists(xml_path) if xml_path else False}")
             socketio.emit('scan_finished', {'message': message, 'xml_path': xml_path})
 
         def on_error_callback(error):
@@ -216,24 +218,37 @@ def get_scan_results():
 
 @app.route('/api/scan/download-xml', methods=['GET'])
 def download_xml():
-    """Download the XML file from the last scan"""
+    """Download the results file from the last scan (XML or JSON for parallel scans)"""
     global last_xml_path
 
-    if not last_xml_path or not os.path.exists(last_xml_path):
-        return jsonify({'error': 'No XML file available'}), 404
+    print(f"[DEBUG] download_xml called, last_xml_path: {last_xml_path}")
+
+    if not last_xml_path:
+        return jsonify({'error': 'No scan results available. Please run a scan first.'}), 404
+
+    if not os.path.exists(last_xml_path):
+        print(f"[DEBUG] File does not exist at path: {last_xml_path}")
+        return jsonify({'error': f'Scan results file not found at: {last_xml_path}'}), 404
 
     from flask import send_file
     import time
 
     # Generate filename with timestamp
     timestamp = time.strftime('%Y%m%d_%H%M%S')
-    filename = f'neozen_scan_{timestamp}.xml'
+
+    # Check if it's JSON (parallel scan) or XML (regular scan)
+    if last_xml_path.endswith('.json'):
+        filename = f'neozen_parallel_scan_{timestamp}.json'
+        mimetype = 'application/json'
+    else:
+        filename = f'neozen_scan_{timestamp}.xml'
+        mimetype = 'application/xml'
 
     return send_file(
         last_xml_path,
         as_attachment=True,
         download_name=filename,
-        mimetype='application/xml'
+        mimetype=mimetype
     )
 
 
