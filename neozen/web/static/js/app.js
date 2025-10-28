@@ -359,14 +359,14 @@ function displayDeviceList(results) {
     devicesBody.innerHTML = '';
 
     if (!results || Object.keys(results).length === 0) {
-        devicesBody.innerHTML = '<tr><td colspan="3" class="no-data">No results found</td></tr>';
+        devicesBody.innerHTML = '<tr><td colspan="4" class="no-data">No results found</td></tr>';
         return;
     }
 
     // Display device list (one row per device)
     for (const [host, hostData] of Object.entries(results)) {
         const hostname = hostData.hostname || '';
-        const displayHost = hostname && hostname !== host ? `${hostname} (${host})` : host;
+        const displayHostname = (hostname && hostname !== host) ? hostname : '';
         const macAddress = hostData.mac || '';
         const vendor = hostData.vendor || '';
         const macDisplay = macAddress && vendor ? `${macAddress} (${vendor})` : macAddress;
@@ -387,11 +387,13 @@ function displayDeviceList(results) {
 
         const row = devicesBody.insertRow();
         row.dataset.hostIp = host;
-        row.dataset.sortHost = displayHost;
+        row.dataset.sortIp = host;
+        row.dataset.sortHostname = displayHostname;
         row.dataset.sortMac = macDisplay;
         row.dataset.sortOs = detectedOS;
         row.innerHTML = `
-            <td>${displayHost}</td>
+            <td>${host}</td>
+            <td>${displayHostname}</td>
             <td>${macDisplay}</td>
             <td>${detectedOS}</td>
         `;
@@ -439,7 +441,7 @@ function sortDeviceTable(columnIndex) {
     currentHeader.classList.add(sortDirection === 'asc' ? 'sort-asc' : 'sort-desc');
 
     // Get the data attribute for sorting
-    const sortKeys = ['sortHost', 'sortMac', 'sortOs'];
+    const sortKeys = ['sortIp', 'sortHostname', 'sortMac', 'sortOs'];
     const sortKey = sortKeys[columnIndex];
 
     // Sort rows

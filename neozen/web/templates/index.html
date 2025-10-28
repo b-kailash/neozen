@@ -18,7 +18,19 @@
                 </div>
                 <div class="user-info">
                     <span class="username">{{ user.username }}</span>
-                    <button id="logout-btn" class="btn btn-logout">Logout</button>
+                    <div class="dropdown">
+                        <button id="admin-menu-btn" class="btn btn-secondary dropdown-toggle">
+                            <span>{{ user.username }}</span> ▼
+                        </button>
+                        <div id="admin-dropdown" class="dropdown-menu">
+                            {% if user.is_admin %}
+                            <a href="#" id="manage-users-link" class="dropdown-item">Manage Users</a>
+                            {% endif %}
+                            <a href="#" id="manage-profile-link" class="dropdown-item">Manage Profile</a>
+                            <div class="dropdown-divider"></div>
+                            <a href="#" id="logout-link" class="dropdown-item">Logout</a>
+                        </div>
+                    </div>
                 </div>
             </div>
         </header>
@@ -120,14 +132,15 @@
                     <table id="devices-table">
                         <thead>
                             <tr>
-                                <th>Host IP</th>
-                                <th>Host MAC Address</th>
+                                <th>IP Address</th>
+                                <th>Hostname</th>
+                                <th>MAC Address</th>
                                 <th>Detected OS</th>
                             </tr>
                         </thead>
                         <tbody id="devices-body">
                             <tr>
-                                <td colspan="3" class="no-data">No scan results yet</td>
+                                <td colspan="4" class="no-data">No scan results yet</td>
                             </tr>
                         </tbody>
                     </table>

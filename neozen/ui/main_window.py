@@ -802,8 +802,8 @@ class MainWindow(QMainWindow):
         parsed_results_layout = QVBoxLayout(self.parsed_results_widget)
         parsed_results_layout.setContentsMargins(0, 5, 0, 0)
         self.results_table = QTableWidget()
-        self.results_table.setColumnCount(3)
-        self.results_table.setHorizontalHeaderLabels(["Host IP", "Host MAC Address", "Detected OS"])
+        self.results_table.setColumnCount(4)
+        self.results_table.setHorizontalHeaderLabels(["IP Address", "Hostname", "MAC Address", "Detected OS"])
         self.results_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers) # Make table read-only
         self.results_table.setAlternatingRowColors(True) # Improve readability
         self.results_table.verticalHeader().setVisible(False) # Hide default row numbers
@@ -811,14 +811,10 @@ class MainWindow(QMainWindow):
         self.results_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection) # Allow only one row selected
         # Configure column resizing behavior
         header = self.results_table.horizontalHeader()
-        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive) # Host (allow resize)
-        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive) # MAC Address (allow resize)
-        header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents) # Proto (fit content)
-        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents) # Port (fit content)
-        header.setSectionResizeMode(4, QHeaderView.ResizeMode.Interactive) # State (allow resize)
-        header.setSectionResizeMode(5, QHeaderView.ResizeMode.Interactive) # Service (allow resize)
-        header.setSectionResizeMode(6, QHeaderView.ResizeMode.Stretch) # Product (stretch)
-        header.setSectionResizeMode(7, QHeaderView.ResizeMode.Stretch) # Version (stretch)
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive) # IP Address (allow resize)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive) # Hostname (allow resize)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Interactive) # MAC Address (allow resize)
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch) # Detected OS (stretch to fill)
         self.results_table.setSortingEnabled(True) # Allow sorting by column header clicks
         parsed_results_layout.addWidget(self.results_table)
         self.tab_widget.addTab(self.parsed_results_widget, "Device Details")
@@ -1409,8 +1405,8 @@ class MainWindow(QMainWindow):
         # Iterate through each host in the results
         for host, host_data in results_data.items():
             hostname = host_data.get('hostname', '')
-            # Format host display (include IP)
-            display_host = f"{hostname} ({host})" if hostname and hostname != host else host
+            # Only show hostname if it's different from the IP
+            display_hostname = hostname if (hostname and hostname != host) else ''
             # Get MAC address for this host
             mac_address = host_data.get('mac', '')
             vendor = host_data.get('vendor', '')
@@ -1429,16 +1425,18 @@ class MainWindow(QMainWindow):
 
             # Add one row per device
             self.results_table.insertRow(row_position)
-            host_item = QTableWidgetItem(display_host)
+            ip_item = QTableWidgetItem(host)
             # Store the actual IP address in the item's data for later retrieval
-            host_item.setData(Qt.ItemDataRole.UserRole, host)
+            ip_item.setData(Qt.ItemDataRole.UserRole, host)
+            hostname_item = QTableWidgetItem(display_hostname)
             mac_item = QTableWidgetItem(mac_display)
             os_item = QTableWidgetItem(detected_os)
 
             # Set items in the current row
-            self.results_table.setItem(row_position, 0, host_item) # Host IP column
-            self.results_table.setItem(row_position, 1, mac_item) # MAC column
-            self.results_table.setItem(row_position, 2, os_item) # OS column
+            self.results_table.setItem(row_position, 0, ip_item) # IP Address column
+            self.results_table.setItem(row_position, 1, hostname_item) # Hostname column
+            self.results_table.setItem(row_position, 2, mac_item) # MAC column
+            self.results_table.setItem(row_position, 3, os_item) # OS column
             row_position += 1
 
         self.results_table.setSortingEnabled(True) # Re-enable sorting

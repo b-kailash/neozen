@@ -54,6 +54,7 @@ header h1 {
     display: flex;
     align-items: center;
     gap: 15px;
+    position: relative;
 }
 
 .user-info .username {
@@ -62,6 +63,7 @@ header h1 {
     padding: 8px 16px;
     background: rgba(255, 255, 255, 0.2);
     border-radius: 20px;
+    display: none; /* Hidden when dropdown is shown */
 }
 
 .btn-logout {
@@ -76,6 +78,65 @@ header h1 {
     background: white;
     color: #667eea;
     transform: translateY(-1px);
+}
+
+/* Dropdown Menu */
+.dropdown {
+    position: relative;
+    display: inline-block;
+}
+
+.dropdown-toggle {
+    background: rgba(255, 255, 255, 0.3);
+    color: white;
+    padding: 8px 20px;
+    border: 2px solid white;
+    font-size: 0.9em;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.dropdown-toggle:hover {
+    background: rgba(255, 255, 255, 0.4);
+}
+
+.dropdown-menu {
+    display: none;
+    position: absolute;
+    right: 0;
+    top: 100%;
+    margin-top: 5px;
+    background: white;
+    min-width: 200px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    border-radius: 6px;
+    overflow: hidden;
+    z-index: 1000;
+}
+
+.dropdown-menu.show {
+    display: block;
+}
+
+.dropdown-item {
+    display: block;
+    padding: 12px 20px;
+    color: #333;
+    text-decoration: none;
+    transition: background 0.2s;
+}
+
+.dropdown-item:hover {
+    background: #f8f9fa;
+    color: #667eea;
+}
+
+.dropdown-divider {
+    height: 1px;
+    background: #e0e0e0;
+    margin: 4px 0;
 }
 
 /* Configuration Section */

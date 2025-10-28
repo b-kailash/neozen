@@ -492,6 +492,151 @@ def delete_device_notes(host_ip):
     else:
         return jsonify({'error': 'Notes not found'}), 404
 
+# --- User Management Routes ---
+
+@app.route('/api/users', methods=['GET'])
+@login_required
+def list_users():
+    """List all users (admin only)"""
+    if not current_user.is_admin:
+        return jsonify({'error': 'Admin access required'}), 403
+
+    users = User.query.all()
+    return jsonify({
+        'users': [{
+            'id': user.id,
+            'username': user.username,
+            'email': user.email,
+            'is_admin': user.is_admin,
+            'created_at': user.created_at.isoformat() if user.created_at else None,
+            'last_login': user.last_login.isoformat() if user.last_login else None
+        } for user in users]
+    })
+
+@app.route('/api/users', methods=['POST'])
+@login_required
+def create_user():
+    """Create a new user (admin only)"""
+    if not current_user.is_admin:
+        return jsonify({'error': 'Admin access required'}), 403
+
+    data = request.json
+    username = data.get('username')
+    password = data.get('password')
+    email = data.get('email')
+    is_admin = data.get('is_admin', False)
+
+    if not username or not password:
+        return jsonify({'error': 'Username and password are required'}), 400
+
+    # Check if username already exists
+    if User.query.filter_by(username=username).first():
+        return jsonify({'error': 'Username already exists'}), 409
+
+    # Check if email already exists (if provided)
+    if email and User.query.filter_by(email=email).first():
+        return jsonify({'error': 'Email already exists'}), 409
+
+    # Create new user
+    user = User(username=username, email=email, is_admin=is_admin)
+    user.set_password(password)
+    db.session.add(user)
+    db.session.commit()
+
+    return jsonify({
+        'success': True,
+        'message': f'User "{username}" created',
+        'user': {
+            'id': user.id,
+            'username': user.username,
+            'email': user.email,
+            'is_admin': user.is_admin
+        }
+    }), 201
+
+@app.route('/api/users/<int:user_id>', methods=['PUT'])
+@login_required
+def update_user(user_id):
+    """Update user (admin only or own profile)"""
+    # Allow users to update their own profile or admin to update any
+    if not current_user.is_admin and current_user.id != user_id:
+        return jsonify({'error': 'Permission denied'}), 403
+
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+
+    data = request.json
+
+    # Update email if provided
+    if 'email' in data:
+        email = data['email']
+        # Check if email is already in use by another user
+        existing = User.query.filter_by(email=email).first()
+        if existing and existing.id != user_id:
+            return jsonify({'error': 'Email already in use'}), 409
+        user.email = email
+
+    # Only admin can change admin status
+    if 'is_admin' in data:
+        if not current_user.is_admin:
+            return jsonify({'error': 'Only admins can change admin status'}), 403
+        user.is_admin = data['is_admin']
+
+    db.session.commit()
+
+    return jsonify({
+        'success': True,
+        'message': 'User updated',
+        'user': {
+            'id': user.id,
+            'username': user.username,
+            'email': user.email,
+            'is_admin': user.is_admin
+        }
+    })
+
+@app.route('/api/users/<int:user_id>', methods=['DELETE'])
+@login_required
+def delete_user(user_id):
+    """Delete user (admin only, cannot delete self)"""
+    if not current_user.is_admin:
+        return jsonify({'error': 'Admin access required'}), 403
+
+    if current_user.id == user_id:
+        return jsonify({'error': 'Cannot delete your own account'}), 400
+
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+
+    username = user.username
+    db.session.delete(user)
+    db.session.commit()
+
+    return jsonify({'success': True, 'message': f'User "{username}" deleted'})
+
+@app.route('/api/users/me/password', methods=['PUT'])
+@login_required
+def change_password():
+    """Change current user's password"""
+    data = request.json
+    current_password = data.get('current_password')
+    new_password = data.get('new_password')
+
+    if not current_password or not new_password:
+        return jsonify({'error': 'Current and new passwords are required'}), 400
+
+    # Verify current password
+    if not current_user.check_password(current_password):
+        return jsonify({'error': 'Current password is incorrect'}), 401
+
+    # Update password
+    current_user.set_password(new_password)
+    db.session.commit()
+
+    return jsonify({'success': True, 'message': 'Password changed successfully'})
+
 @app.route('/api/scan/export-csv', methods=['GET'])
 @login_required
 def export_csv():
@@ -511,7 +656,7 @@ def export_csv():
     writer = csv.writer(output)
 
     # Write header
-    writer.writerow(['Host', 'MAC Address', 'Protocol', 'Port', 'State', 'Service', 'Product', 'Version'])
+    writer.writerow(['IP Address', 'Hostname', 'MAC Address', 'Protocol', 'Port', 'State', 'Service', 'Product', 'Version'])
 
     # Track unique rows to avoid duplicates
     exported_rows = set()
@@ -519,7 +664,7 @@ def export_csv():
     # Write data
     for host, host_data in user_session.scan_results.items():
         hostname = host_data.get('hostname', '')
-        display_host = f"{hostname} ({host})" if hostname and hostname != host else host
+        display_hostname = hostname if (hostname and hostname != host) else ''
         mac_address = host_data.get('mac', '')
         vendor = host_data.get('vendor', '')
         mac_display = f"{mac_address} ({vendor})" if mac_address and vendor else mac_address
@@ -527,7 +672,7 @@ def export_csv():
 
         if not protocols:
             # Host with no ports
-            row = (display_host, mac_display, '', '', host_data.get('state', 'unknown'), '(No ports found)', '', '')
+            row = (host, display_hostname, mac_display, '', '', host_data.get('state', 'unknown'), '(No ports found)', '', '')
             if row not in exported_rows:
                 writer.writerow(row)
                 exported_rows.add(row)
@@ -536,7 +681,8 @@ def export_csv():
             for proto, ports in protocols.items():
                 for port, port_data in ports.items():
                     row = (
-                        display_host,
+                        host,
+                        display_hostname,
                         mac_display,
                         proto,
                         port,
