@@ -139,9 +139,32 @@ header h1 {
     cursor: not-allowed;
 }
 
+/* Command Display */
+.command-display {
+    margin-top: 20px;
+}
+
+.command-display label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: #555;
+}
+
+#command-display-text {
+    width: 100%;
+    padding: 10px;
+    background: #f8f9fa;
+    border: 2px solid #e0e0e0;
+    border-radius: 6px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.9em;
+    color: #333;
+}
+
 /* Status Bar */
 .status-bar {
-    margin-top: 20px;
+    margin-top: 15px;
     padding: 12px;
     background: #f8f9fa;
     border-left: 4px solid #667eea;
@@ -232,6 +255,29 @@ header h1 {
     padding: 12px;
     text-align: left;
     font-weight: 600;
+    cursor: pointer;
+    user-select: none;
+    position: relative;
+}
+
+#devices-table th:hover {
+    background: #5568d3;
+}
+
+#devices-table th.sortable::after {
+    content: ' ⇅';
+    opacity: 0.5;
+    font-size: 0.8em;
+}
+
+#devices-table th.sort-asc::after {
+    content: ' ▲';
+    opacity: 1;
+}
+
+#devices-table th.sort-desc::after {
+    content: ' ▼';
+    opacity: 1;
 }
 
 #devices-table td {

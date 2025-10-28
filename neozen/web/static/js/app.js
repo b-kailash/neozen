@@ -26,6 +26,7 @@ const saveProfileBtn = document.getElementById('save-profile-btn');
 const downloadXmlBtn = document.getElementById('download-xml-btn');
 const exportCsvBtn = document.getElementById('export-csv-btn');
 const statusDiv = document.getElementById('status');
+const commandDisplayText = document.getElementById('command-display-text');
 const rawOutputDiv = document.getElementById('raw-output');
 const devicesBody = document.getElementById('devices-body');
 const portsBody = document.getElementById('ports-body');
@@ -227,6 +228,10 @@ async function startScan() {
         args += ' -sV';
     }
 
+    // Build and display the command
+    const command = `nmap ${args.trim()} ${target}`;
+    commandDisplayText.value = command;
+
     try {
         // Build request body with parallel scanning options
         const requestBody = {
@@ -347,6 +352,9 @@ function displayDeviceList(results) {
 
         const row = devicesBody.insertRow();
         row.dataset.hostIp = host;
+        row.dataset.sortHost = displayHost;
+        row.dataset.sortMac = macDisplay;
+        row.dataset.sortOs = detectedOS;
         row.innerHTML = `
             <td>${displayHost}</td>
             <td>${macDisplay}</td>
@@ -358,6 +366,58 @@ function displayDeviceList(results) {
             selectDevice(host, row);
         });
     }
+
+    // Enable sorting after populating the table
+    initializeTableSorting();
+}
+
+function initializeTableSorting() {
+    const headers = document.querySelectorAll('#devices-table th');
+    headers.forEach((header, index) => {
+        header.classList.add('sortable');
+        header.addEventListener('click', () => sortDeviceTable(index));
+    });
+}
+
+function sortDeviceTable(columnIndex) {
+    const table = document.getElementById('devices-table');
+    const tbody = devicesBody;
+    const rows = Array.from(tbody.querySelectorAll('tr')).filter(row => !row.querySelector('.no-data'));
+
+    if (rows.length === 0) return;
+
+    const headers = table.querySelectorAll('th');
+    const currentHeader = headers[columnIndex];
+
+    // Determine sort direction
+    let sortDirection = 'asc';
+    if (currentHeader.classList.contains('sort-asc')) {
+        sortDirection = 'desc';
+    }
+
+    // Clear all sort indicators
+    headers.forEach(h => {
+        h.classList.remove('sort-asc', 'sort-desc');
+    });
+
+    // Set current sort indicator
+    currentHeader.classList.add(sortDirection === 'asc' ? 'sort-asc' : 'sort-desc');
+
+    // Get the data attribute for sorting
+    const sortKeys = ['sortHost', 'sortMac', 'sortOs'];
+    const sortKey = sortKeys[columnIndex];
+
+    // Sort rows
+    rows.sort((a, b) => {
+        const aValue = a.dataset[sortKey] || '';
+        const bValue = b.dataset[sortKey] || '';
+
+        const comparison = aValue.localeCompare(bValue, undefined, { numeric: true, sensitivity: 'base' });
+        return sortDirection === 'asc' ? comparison : -comparison;
+    });
+
+    // Re-append rows in sorted order
+    rows.forEach(row => tbody.appendChild(row));
 }
 
 function selectDevice(hostIp, rowElement) {
